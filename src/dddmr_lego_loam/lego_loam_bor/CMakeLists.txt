@@ -245,12 +245,11 @@ ament_target_dependencies(lego_loam_bag_lidar2depthimg_node
   ${dependencies}
 )
 
+#--- Everything below require CUDA ---
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "cmake")
-# Build the TensorRT inference engine library
-# TensorRT is found and linked by the tensorrt-cpp-api
 add_subdirectory(src/yolo_trt/tensorrt-cpp-api)
 
-# Build the YoloV8 library
 add_library(YoloV8_TRT SHARED src/yolo_trt/yolov8.cpp)
 target_link_libraries(YoloV8_TRT PUBLIC tensorrt_cpp_api ${OpenCV_LIBRARIES})
 target_include_directories(YoloV8_TRT PUBLIC src/yolo_trt/tensorrt-cpp-api/src)
@@ -266,6 +265,21 @@ target_link_libraries(yolo_ros2_image_sub
 ament_target_dependencies(yolo_ros2_image_sub
   ${dependencies}
 )
+
+# yolo lego loam ip
+add_library(yolo_image_projection SHARED
+  src/yoloImageProjection.cpp
+)
+target_link_libraries(yolo_image_projection
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  YoloV8_TRT
+)
+ament_target_dependencies(yolo_image_projection
+  ${dependencies}
+)
+
+# --- Everything CUDA finish here ---
 
 install(TARGETS
   opt_icp_gn
