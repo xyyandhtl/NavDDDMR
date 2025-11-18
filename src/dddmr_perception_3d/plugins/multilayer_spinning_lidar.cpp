@@ -631,21 +631,23 @@ void MultiLayerSpinningLidar::getCastingPointCloud(pcl::PointXYZ& cluster_center
 
   //@We leverage intensity as distance from cluster_center to check point
   float dX =
-      cluster_center.x - trans_gbl2s_af3_.translation().x();
+      trans_gbl2s_af3_.translation().x() - cluster_center.x;
   float dY =
-      cluster_center.y - trans_gbl2s_af3_.translation().y();
+      trans_gbl2s_af3_.translation().y() - cluster_center.y;
   float dZ =
-      cluster_center.z - trans_gbl2s_af3_.translation().z();
+      trans_gbl2s_af3_.translation().z() - cluster_center.z;
   
   float distance = sqrt(dX*dX + dY*dY + dZ*dZ);
+  //@ Distance is the distance from cluster_center to line point sample
   distance = distance/0.05; //sample by every 5 cm
   float dt = 1/distance;
   for(float t=0; t<=1.0; t+=dt){
     pcl::PointXYZI a_pt;
     a_pt.intensity = 0.0;
-    a_pt.x = trans_gbl2s_af3_.translation().x() + dX*t;
-    a_pt.y = trans_gbl2s_af3_.translation().y() + dY*t;
-    a_pt.z = trans_gbl2s_af3_.translation().z() + dZ*t;
+    a_pt.x = cluster_center.x + dX*t;
+    a_pt.y = cluster_center.y + dY*t;
+    a_pt.z = cluster_center.z + dZ*t;
+    //@when t=0, a_pt should be the same as cluster_center
     a_pt.intensity = getDistanceBTWPoints(cluster_center, a_pt);  
     pc_for_check.push_back(a_pt); 
   }
@@ -680,7 +682,7 @@ void MultiLayerSpinningLidar::getCastingPointCloud(pcl::PointXYZ& cluster_center
 }
 
 bool MultiLayerSpinningLidar::isinLidarObservation(pcl::PointXYZ& pc){
-
+  
   
   //@ Solving vertical distance to sensor plan, so we can compute sin for vertical FOV check
   
