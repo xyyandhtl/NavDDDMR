@@ -359,7 +359,7 @@ void YoloImageProjection::cloudHandler(
 void YoloImageProjection::projectPointCloud() {
   
   //cv image
-  range_mat_removing_moving_object_ = cv::Mat::zeros(_vertical_scans, _horizontal_scans, CV_8UC1); 
+  range_mat_removing_moving_object_ = cv::Mat::zeros(_vertical_scans, _horizontal_scans, CV_8UC3); 
   cv::Mat projected_image(_vertical_scans, _horizontal_scans, CV_8UC3, cv::Scalar(0,0,0));
   
   // range image projection
@@ -379,7 +379,7 @@ void YoloImageProjection::projectPointCloud() {
     float verticalAngle = std::asin(thisPoint.z / range);
         //std::atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y));
 
-    int rowIdn = (verticalAngle + _ang_bottom) / _ang_resolution_Y;
+    int rowIdn = (verticalAngle + _ang_bottom + _sensor_mount_angle) / _ang_resolution_Y;
     if (rowIdn < 0 || rowIdn >= _vertical_scans) {
       continue;
     }
@@ -467,7 +467,7 @@ void YoloImageProjection::projectPointCloud() {
 
   cv_bridge::CvImage img_bridge;
   img_bridge.image = range_mat_removing_moving_object_;
-  img_bridge.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+  img_bridge.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
   sensor_msgs::msg::Image::SharedPtr msg = img_bridge.toImageMsg();
   _pub_projected_image->publish(*msg);
 
@@ -481,26 +481,12 @@ void YoloImageProjection::projectPointCloud() {
   double imge_time = _seg_msg.header.stamp.sec + _seg_msg.header.stamp.nanosec/1e9;
 
   if(!to_fa_ && imge_time - last_save_depth_img_time_ >= time_step_between_depth_image_){
-    /*
-    cv::Mat mat_color_8 = cv::Mat(projected_image.rows, projected_image.cols, CV_8UC3);   // container for false-color version
-
-    for (int di=0; di<projected_image.rows; di++){
-      for (int dj=0; dj<projected_image.cols; dj++){
-        ushort val = projected_image.at<ushort>(di,dj);
-        mat_color_8.at<cv::Vec3b>(di,dj)[0] = val;
-        mat_color_8.at<cv::Vec3b>(di,dj)[1] = val;
-        mat_color_8.at<cv::Vec3b>(di,dj)[2] = val;
-      }
-    }
-    */
-    cv::Mat colorImage;
-    cv::cvtColor(projected_image, colorImage, cv::COLOR_GRAY2BGR);
     std::string timestamp;
     std::stringstream ss;
     ss << _seg_msg.header.stamp.sec << "_" << std::setw(9) << std::setfill('0') << _seg_msg.header.stamp.nanosec;
     timestamp = ss.str();
     std::string file_name = mapping_dir_string_ + "/" + timestamp + ".png";
-    cv::imwrite(file_name, colorImage);
+    cv::imwrite(file_name, projected_image);
     last_save_depth_img_time_ = imge_time;
   }
 
@@ -556,7 +542,7 @@ void YoloImageProjection::groundRemoval() {
 
       // TODO: review this change
 
-      if ( (vertical_angle + _sensor_mount_angle) <= 10 * DEG_TO_RAD) {
+      if ( (vertical_angle) <= 10 * DEG_TO_RAD) {
         _ground_mat(i, j) = 1;
         _ground_mat(i + 1, j) = 1;
         //x = _full_cloud->points[lowerInd].x + dX*t
@@ -641,7 +627,8 @@ void YoloImageProjection::groundRemoval() {
         _label_mat(i, j) = -1;
       }
       // it was generated as _range_mat(rowIdn, viscolumnIdn) = range;
-      if(range_mat_removing_moving_object_.at<unsigned char>(_vertical_scans-i, j) == 0){
+      cv::Vec3b pixel = range_mat_removing_moving_object_.at<cv::Vec3b>(_vertical_scans-i, j);
+      if(pixel[0]==0 && pixel[1]==0 && pixel[2]==0){
         _label_mat(i, j) = -1;
       }
     }

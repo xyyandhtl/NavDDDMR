@@ -65,6 +65,8 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   _pub_outlier_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
       ("outlier_cloud", 1); 
   
+  //pub_annotated_img_ = this->create_publisher<sensor_msgs::msg::Image>("annotated_image", 1);
+  
   declare_parameter("laser.num_vertical_scans", rclcpp::ParameterValue(0));
   this->get_parameter("laser.num_vertical_scans", _vertical_scans);
   RCLCPP_INFO(this->get_logger(), "laser.num_vertical_scans: %d", _vertical_scans);
@@ -136,12 +138,19 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   declare_parameter("imageProjection.time_step_between_depth_image", rclcpp::ParameterValue(0.5));
   this->get_parameter("imageProjection.time_step_between_depth_image", time_step_between_depth_image_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.time_step_between_depth_image: %.2f", time_step_between_depth_image_);
-  
+
   declare_parameter("imageProjection.stitcher_num", rclcpp::ParameterValue(0));
   this->get_parameter("imageProjection.stitcher_num", stitcher_num_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.stitcher_num: %d", stitcher_num_);
-
   
+  /*
+  this->declare_parameter("imageProjection.trt_model_path", rclcpp::ParameterValue(""));
+  this->get_parameter("imageProjection.trt_model_path", trt_model_path_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.trt_model_path: %s" , trt_model_path_.c_str());
+
+  YoloV8Config config;
+  yolov8_ = std::make_shared<YoloV8>("", trt_model_path_, config);
+  */
   const size_t cloud_size = _vertical_scans * _horizontal_scans;
 
   _laser_cloud_in.reset(new pcl::PointCloud<PointType>());
@@ -298,6 +307,7 @@ void ImageProjection::cloudHandler(
 
   resetParameters();
 
+  // Copy and remove NAN points
   pcl::fromROSMsg(*laserCloudMsg, *_laser_cloud_in);
   std::vector<int> indices;
   pcl::removeNaNFromPointCloud(*_laser_cloud_in, *_laser_cloud_in, indices);
@@ -350,6 +360,7 @@ void ImageProjection::cloudHandler(
 void ImageProjection::projectPointCloud() {
   
   //cv image
+  //range_mat_removing_moving_object_ = cv::Mat::zeros(_vertical_scans, _horizontal_scans, CV_8UC3); 
   cv::Mat projected_image(_vertical_scans, _horizontal_scans, CV_8UC3, cv::Scalar(0,0,0));
   
   // range image projection
@@ -379,7 +390,16 @@ void ImageProjection::projectPointCloud() {
     //if(horizonAngle>=0.7854 && horizonAngle<=1.57+0.7854 && range<6.0){
     //  continue;
     //}
+    /*
+    int columnIdn = -round((horizonAngle) / _ang_resolution_X) + _horizontal_scans * 0.5;
 
+    if (columnIdn >= _horizontal_scans){
+      columnIdn -= _horizontal_scans;
+    }
+    if (columnIdn < 0 || columnIdn >= _horizontal_scans){
+      continue;
+    }
+    */
     int viscolumnIdn = -round((horizonAngle) / _ang_resolution_X) + _horizontal_scans * 0.5 + _horizontal_scans * 0.25;
     if(viscolumnIdn>=_horizontal_scans)
       viscolumnIdn = viscolumnIdn - _horizontal_scans;
@@ -414,6 +434,8 @@ void ImageProjection::projectPointCloud() {
       projected_image.at<cv::Vec3b>(_vertical_scans-rowIdn, viscolumnIdn)[2] = 0;
 
     }
+      
+
     thisPoint.intensity = (float)rowIdn + (float)viscolumnIdn / 10000.0;
     size_t index = viscolumnIdn + rowIdn * _horizontal_scans;
     _full_cloud->points[index] = thisPoint;
@@ -421,36 +443,53 @@ void ImageProjection::projectPointCloud() {
     _full_info_cloud->points[index] = thisPoint;
     _full_info_cloud->points[index].intensity = range;
   }
+  
+  /*
+  // Run inference
+  const auto objects = yolov8_->detectObjects(projected_image);
 
+  // Draw the bounding boxes on the image
+  yolov8_->drawObjectLabels(projected_image, objects);
+
+  // Remove object from projected_image
+  cv::Mat full_sized_mask = cv::Mat::zeros(projected_image.size(), CV_8UC1);
+  for (const auto &object : objects) {
+
+    //@ label=1 is person, remove it
+    if(object.label==1){
+      cv::Mat roi_mask = full_sized_mask(object.rect);
+      object.boxMask.copyTo(roi_mask);
+    }
+    //cv::Size imageSize = object.boxMask.size();
+    //RCLCPP_INFO(this->get_logger(), "object class: %d, confidence: %.2f", object.label, object.probability);
+  }
+  cv::Mat inverted_mask;
+  cv::bitwise_not(full_sized_mask, inverted_mask);
+  cv::bitwise_and(projected_image, projected_image, range_mat_removing_moving_object_, inverted_mask);
+  */
   cv_bridge::CvImage img_bridge;
   img_bridge.image = projected_image;
   img_bridge.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
   sensor_msgs::msg::Image::SharedPtr msg = img_bridge.toImageMsg();
   _pub_projected_image->publish(*msg);
+  
+  /*
+  cv_bridge::CvImage img_annotated;
+  img_annotated.image = projected_image;
+  img_annotated.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
+  sensor_msgs::msg::Image::SharedPtr ros2_annotated_img = img_annotated.toImageMsg();
+  pub_annotated_img_->publish(*ros2_annotated_img);
+  */
 
   //@ write depth img
   double imge_time = _seg_msg.header.stamp.sec + _seg_msg.header.stamp.nanosec/1e9;
 
   if(!to_fa_ && imge_time - last_save_depth_img_time_ >= time_step_between_depth_image_){
-    /*
-    cv::Mat mat_color_8 = cv::Mat(projected_image.rows, projected_image.cols, CV_8UC3);   // container for false-color version
-
-    for (int di=0; di<projected_image.rows; di++){
-      for (int dj=0; dj<projected_image.cols; dj++){
-        ushort val = projected_image.at<ushort>(di,dj);
-        mat_color_8.at<cv::Vec3b>(di,dj)[0] = val;
-        mat_color_8.at<cv::Vec3b>(di,dj)[1] = val;
-        mat_color_8.at<cv::Vec3b>(di,dj)[2] = val;
-      }
-    }
-    */
     std::string timestamp;
     std::stringstream ss;
     ss << _seg_msg.header.stamp.sec << "_" << std::setw(9) << std::setfill('0') << _seg_msg.header.stamp.nanosec;
     timestamp = ss.str();
-    std::string res;
-    res = std::to_string(_vertical_scans) + "x" + std::to_string(_horizontal_scans);
-    std::string file_name = mapping_dir_string_ + "/" + timestamp + "_" + res + ".png";
+    std::string file_name = mapping_dir_string_ + "/" + timestamp + ".png";
     cv::imwrite(file_name, projected_image);
     last_save_depth_img_time_ = imge_time;
   }
@@ -591,6 +630,11 @@ void ImageProjection::groundRemoval() {
           _range_mat(i, j) == FLT_MAX) {
         _label_mat(i, j) = -1;
       }
+      // it was generated as _range_mat(rowIdn, viscolumnIdn) = range;
+      //cv::Vec3b pixel = range_mat_removing_moving_object_.at<cv::Vec3b>(_vertical_scans-i, j);
+      //if(pixel[0]==0 && pixel[1]==0 && pixel[2]==0){
+      //  _label_mat(i, j) = -1;
+      //}
     }
   }
 
