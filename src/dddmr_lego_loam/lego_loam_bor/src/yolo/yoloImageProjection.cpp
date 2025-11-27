@@ -359,6 +359,7 @@ void YoloImageProjection::cloudHandler(
 void YoloImageProjection::projectPointCloud() {
   
   //cv image
+  range_mat_removing_moving_object_ = cv::Mat::zeros(_vertical_scans, _horizontal_scans, CV_8UC1); 
   cv::Mat projected_image(_vertical_scans, _horizontal_scans, CV_8UC1, cv::Scalar(0));
   
   // range image projection
@@ -388,46 +389,48 @@ void YoloImageProjection::projectPointCloud() {
     //if(horizonAngle>=0.7854 && horizonAngle<=1.57+0.7854 && range<6.0){
     //  continue;
     //}
-
+    /*
     int columnIdn = -round((horizonAngle) / _ang_resolution_X) + _horizontal_scans * 0.5;
 
     if (columnIdn >= _horizontal_scans){
       columnIdn -= _horizontal_scans;
     }
-
     if (columnIdn < 0 || columnIdn >= _horizontal_scans){
       continue;
     }
+    */
+    int viscolumnIdn = -round((horizonAngle) / _ang_resolution_X) + _horizontal_scans * 0.5 + _horizontal_scans * 0.25;
+    if(viscolumnIdn>=_horizontal_scans)
+      viscolumnIdn = viscolumnIdn - _horizontal_scans;
+
+    if (viscolumnIdn < 0 || viscolumnIdn >= _horizontal_scans){
+      continue;
+    }
+
 
     if (range < _minimum_detection_range || range > _maximum_detection_range){
       continue;
     }
 
-    _range_mat(rowIdn, columnIdn) = range;
+    _range_mat(rowIdn, viscolumnIdn) = range;
     
     //@ generate projected_image
     //@ the rowIdn for _range_mat is from top to bottom, which means the line 0 is the first row
     //@ to visualize the depth image more intuitively, we make line 0 to the last rowIdn
     // for columnIdn, we need to rotate it 180 degree
-    int viscolumnIdn = -round((horizonAngle) / _ang_resolution_X) + _horizontal_scans * 0.5 + _horizontal_scans * 0.25;
-    if(viscolumnIdn>=_horizontal_scans)
-      viscolumnIdn = viscolumnIdn - _horizontal_scans;
+    //int viscolumnIdn = -round((horizonAngle) / _ang_resolution_X) + _horizontal_scans * 0.5 + _horizontal_scans * 0.25;
+    //if(viscolumnIdn>=_horizontal_scans)
+    //  viscolumnIdn = viscolumnIdn - _horizontal_scans;
     if(rowIdn>0 && rowIdn<=_vertical_scans && viscolumnIdn<_horizontal_scans && viscolumnIdn>=0)
       projected_image.at<unsigned char>(_vertical_scans-rowIdn, viscolumnIdn) = static_cast<unsigned char>(range*51);
 
-    thisPoint.intensity = (float)rowIdn + (float)columnIdn / 10000.0;
-    size_t index = columnIdn + rowIdn * _horizontal_scans;
+    thisPoint.intensity = (float)rowIdn + (float)viscolumnIdn / 10000.0;
+    size_t index = viscolumnIdn + rowIdn * _horizontal_scans;
     _full_cloud->points[index] = thisPoint;
     // the corresponding range of a point is saved as "intensity"
     _full_info_cloud->points[index] = thisPoint;
     _full_info_cloud->points[index].intensity = range;
   }
-
-  cv_bridge::CvImage img_bridge;
-  img_bridge.image = projected_image;
-  img_bridge.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
-  sensor_msgs::msg::Image::SharedPtr msg = img_bridge.toImageMsg();
-  _pub_projected_image->publish(*msg);
 
 
   cv::Mat colorImage;
@@ -437,6 +440,28 @@ void YoloImageProjection::projectPointCloud() {
 
   // Draw the bounding boxes on the image
   yolov8_->drawObjectLabels(colorImage, objects);
+
+  // Remove object from projected_image
+  cv::Mat full_sized_mask = cv::Mat::zeros(projected_image.size(), CV_8UC1);
+  for (const auto &object : objects) {
+
+    //@ label=1 is person, remove it
+    if(object.label==1){
+      cv::Mat roi_mask = full_sized_mask(object.rect);
+      object.boxMask.copyTo(roi_mask);
+    }
+    //cv::Size imageSize = object.boxMask.size();
+    //RCLCPP_INFO(this->get_logger(), "object class: %d, confidence: %.2f", object.label, object.probability);
+  }
+  cv::Mat inverted_mask;
+  cv::bitwise_not(full_sized_mask, inverted_mask);
+  cv::bitwise_and(projected_image, projected_image, range_mat_removing_moving_object_, inverted_mask);
+
+  cv_bridge::CvImage img_bridge;
+  img_bridge.image = range_mat_removing_moving_object_;
+  img_bridge.encoding = sensor_msgs::image_encodings::TYPE_8UC1;
+  sensor_msgs::msg::Image::SharedPtr msg = img_bridge.toImageMsg();
+  _pub_projected_image->publish(*msg);
 
   cv_bridge::CvImage img_annotated;
   img_annotated.image = colorImage;
@@ -605,6 +630,10 @@ void YoloImageProjection::groundRemoval() {
     for (size_t j = 0; j < _horizontal_scans; ++j) {
       if (_ground_mat(i, j) == 1 ||
           _range_mat(i, j) == FLT_MAX) {
+        _label_mat(i, j) = -1;
+      }
+      // it was generated as _range_mat(rowIdn, viscolumnIdn) = range;
+      if(range_mat_removing_moving_object_.at<unsigned char>(_vertical_scans-i, j) == 0){
         _label_mat(i, j) = -1;
       }
     }

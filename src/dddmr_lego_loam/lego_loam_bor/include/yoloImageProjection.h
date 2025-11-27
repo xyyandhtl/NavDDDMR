@@ -102,7 +102,8 @@ class YoloImageProjection : public rclcpp::Node
     cloud_msgs::msg::CloudInfo _seg_msg;
 
     int _label_count;
-
+    
+    cv::Mat range_mat_removing_moving_object_;
     Eigen::MatrixXf _range_mat;   // range matrix for range image
     Eigen::MatrixXi _label_mat;   // label matrix for segmentaiton marking
     Eigen::Matrix<int8_t,Eigen::Dynamic,Eigen::Dynamic> _ground_mat;  // ground matrix for ground cloud marking
