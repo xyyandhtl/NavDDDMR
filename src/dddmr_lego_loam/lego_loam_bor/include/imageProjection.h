@@ -22,6 +22,13 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/opencv.hpp>
 
+#include <filesystem>
+
+#ifdef TRT_ENABLED
+#include "dddmr_trt/yolov8.h"
+#include <opencv2/cudaimgproc.hpp>
+#endif
+
 class ImageProjection : public rclcpp::Node 
 {
   public:
@@ -99,7 +106,8 @@ class ImageProjection : public rclcpp::Node
     cloud_msgs::msg::CloudInfo _seg_msg;
 
     int _label_count;
-
+    
+    cv::Mat range_mat_removing_moving_object_;
     Eigen::MatrixXf _range_mat;   // range matrix for range image
     Eigen::MatrixXi _label_mat;   // label matrix for segmentaiton marking
     Eigen::Matrix<int8_t,Eigen::Dynamic,Eigen::Dynamic> _ground_mat;  // ground matrix for ground cloud marking
@@ -115,15 +123,21 @@ class ImageProjection : public rclcpp::Node
     geometry_msgs::msg::TransformStamped trans_c2b_;
 
     //@ list of pointcloud sticher for non-repetitive scan lidar
-    std::list<pcl::PointCloud<PointType>> pcl_stitcher_;
+    std::list<pcl::PointCloud<PointType>> pcl_stitcher_;    
     std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
-
+    
     double last_save_depth_img_time_;
     double time_step_between_depth_image_;
     
     int stitcher_num_;
+    
+    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_annotated_img_;
+    
+    bool is_trt_engine_exist_;
+    std::string trt_model_path_;
+#ifdef TRT_ENABLED
+    std::shared_ptr<YoloV8> yolov8_;
+#endif
 };
-
-
 
 #endif  // IMAGEPROJECTION_H

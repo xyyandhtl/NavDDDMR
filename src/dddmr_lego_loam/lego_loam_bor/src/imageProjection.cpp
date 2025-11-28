@@ -39,7 +39,7 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   pcl::console::setVerbosityLevel(pcl::console::L_ERROR);
   clock_ = this->get_clock();
   last_save_depth_img_time_ = 0;
-
+  is_trt_engine_exist_ = false;
   tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
   _pub_projected_image = this->create_publisher<sensor_msgs::msg::Image>("projected_image", 1);
 
@@ -65,7 +65,7 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   _pub_outlier_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
       ("outlier_cloud", 1); 
   
-  //pub_annotated_img_ = this->create_publisher<sensor_msgs::msg::Image>("annotated_image", 1);
+  pub_annotated_img_ = this->create_publisher<sensor_msgs::msg::Image>("annotated_image", 1);
   
   declare_parameter("laser.num_vertical_scans", rclcpp::ParameterValue(0));
   this->get_parameter("laser.num_vertical_scans", _vertical_scans);
@@ -143,14 +143,23 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   this->get_parameter("imageProjection.stitcher_num", stitcher_num_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.stitcher_num: %d", stitcher_num_);
   
-  /*
   this->declare_parameter("imageProjection.trt_model_path", rclcpp::ParameterValue(""));
   this->get_parameter("imageProjection.trt_model_path", trt_model_path_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.trt_model_path: %s" , trt_model_path_.c_str());
+  
+  std::string filename = "my_file.txt"; // Replace with your file name
 
-  YoloV8Config config;
-  yolov8_ = std::make_shared<YoloV8>("", trt_model_path_, config);
-  */
+  if (std::filesystem::exists(trt_model_path_)) {
+    is_trt_engine_exist_ = true;
+  }
+
+#ifdef TRT_ENABLED
+  if(is_trt_engine_exist_){
+    YoloV8Config config;
+    yolov8_ = std::make_shared<YoloV8>("", trt_model_path_, config);
+  }
+#endif
+
   const size_t cloud_size = _vertical_scans * _horizontal_scans;
 
   _laser_cloud_in.reset(new pcl::PointCloud<PointType>());
@@ -360,7 +369,7 @@ void ImageProjection::cloudHandler(
 void ImageProjection::projectPointCloud() {
   
   //cv image
-  //range_mat_removing_moving_object_ = cv::Mat::zeros(_vertical_scans, _horizontal_scans, CV_8UC3); 
+  range_mat_removing_moving_object_ = cv::Mat::zeros(_vertical_scans, _horizontal_scans, CV_8UC3); 
   cv::Mat projected_image(_vertical_scans, _horizontal_scans, CV_8UC3, cv::Scalar(0,0,0));
   
   // range image projection
@@ -444,15 +453,18 @@ void ImageProjection::projectPointCloud() {
     _full_info_cloud->points[index].intensity = range;
   }
   
-  /*
+#ifdef TRT_ENABLED
+  
+  if(to_fa_ && is_trt_engine_exist_){ //to_fa means we are not exporting depth image, so skip inference to save time 
+  cv::Mat inferenced_image = projected_image;
   // Run inference
-  const auto objects = yolov8_->detectObjects(projected_image);
+  const auto objects = yolov8_->detectObjects(inferenced_image);
 
   // Draw the bounding boxes on the image
-  yolov8_->drawObjectLabels(projected_image, objects);
+  yolov8_->drawObjectLabels(inferenced_image, objects);
 
   // Remove object from projected_image
-  cv::Mat full_sized_mask = cv::Mat::zeros(projected_image.size(), CV_8UC1);
+  cv::Mat full_sized_mask = cv::Mat::zeros(inferenced_image.size(), CV_8UC1);
   for (const auto &object : objects) {
 
     //@ label=1 is person, remove it
@@ -465,21 +477,21 @@ void ImageProjection::projectPointCloud() {
   }
   cv::Mat inverted_mask;
   cv::bitwise_not(full_sized_mask, inverted_mask);
-  cv::bitwise_and(projected_image, projected_image, range_mat_removing_moving_object_, inverted_mask);
-  */
+  cv::bitwise_and(inferenced_image, inferenced_image, range_mat_removing_moving_object_, inverted_mask);
+
+  cv_bridge::CvImage img_annotated;
+  img_annotated.image = inferenced_image;
+  img_annotated.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
+  sensor_msgs::msg::Image::SharedPtr ros2_annotated_img = img_annotated.toImageMsg();
+  pub_annotated_img_->publish(*ros2_annotated_img);
+  }
+#endif
+
   cv_bridge::CvImage img_bridge;
   img_bridge.image = projected_image;
   img_bridge.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
   sensor_msgs::msg::Image::SharedPtr msg = img_bridge.toImageMsg();
   _pub_projected_image->publish(*msg);
-  
-  /*
-  cv_bridge::CvImage img_annotated;
-  img_annotated.image = projected_image;
-  img_annotated.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
-  sensor_msgs::msg::Image::SharedPtr ros2_annotated_img = img_annotated.toImageMsg();
-  pub_annotated_img_->publish(*ros2_annotated_img);
-  */
 
   //@ write depth img
   double imge_time = _seg_msg.header.stamp.sec + _seg_msg.header.stamp.nanosec/1e9;
@@ -630,11 +642,15 @@ void ImageProjection::groundRemoval() {
           _range_mat(i, j) == FLT_MAX) {
         _label_mat(i, j) = -1;
       }
-      // it was generated as _range_mat(rowIdn, viscolumnIdn) = range;
-      //cv::Vec3b pixel = range_mat_removing_moving_object_.at<cv::Vec3b>(_vertical_scans-i, j);
-      //if(pixel[0]==0 && pixel[1]==0 && pixel[2]==0){
-      //  _label_mat(i, j) = -1;
-      //}
+#ifdef TRT_ENABLED
+      if(is_trt_engine_exist_){
+        // it was generated as _range_mat(rowIdn, viscolumnIdn) = range;
+        cv::Vec3b pixel = range_mat_removing_moving_object_.at<cv::Vec3b>(_vertical_scans-i, j);
+        if(pixel[0]==0 && pixel[1]==0 && pixel[2]==0){
+          _label_mat(i, j) = -1;
+        }
+      }
+#endif
     }
   }
 

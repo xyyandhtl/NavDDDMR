@@ -417,7 +417,7 @@ void YoloV8::drawObjectLabels(cv::Mat &image, const std::vector<Object> &objects
         cv::Mat mask = image.clone();
         for (const auto &object : objects) {
             // Choose the color
-            int colorIndex = (object.label+20) % COLOR_LIST.size(); //rotate color
+            int colorIndex = (object.label+9) % COLOR_LIST.size(); //rotate color
             cv::Scalar color = cv::Scalar(COLOR_LIST[colorIndex][0], COLOR_LIST[colorIndex][1], COLOR_LIST[colorIndex][2]);
 
             // Add the mask for said object

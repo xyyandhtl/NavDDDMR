@@ -62,12 +62,37 @@ set(dependencies
   image_geometry
 )
 
-include_directories(
-  include
-  ${PCL_INCLUDE_DIRS}
-  ${GTSAM_INCLUDE_DIRS}
-  ${OpenCV_INCLUDE_DIRS}
-)
+#Check yolo build flag
+if(NOT TRT_ENABLED)
+    set(TRT_ENABLED OFF CACHE BOOL "Enable or disable TensorRT")
+endif()
+
+
+if(TRT_ENABLED)
+  add_definitions(-DTRT_ENABLED) 
+  find_package(CUDAToolkit REQUIRED)
+
+  message(STATUS "TensorRT is enabled. Compiling TRT and YOLO features")
+  set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "cmake")
+
+  include_directories(
+    include
+    ${PCL_INCLUDE_DIRS}
+    ${GTSAM_INCLUDE_DIRS}
+    ${OpenCV_INCLUDE_DIRS}
+    ${dddmr_trt_INCLUDE_DIRS}
+  )
+else()
+    message(STATUS "TensorRT is disabled.")
+    include_directories(
+      include
+      ${PCL_INCLUDE_DIRS}
+      ${GTSAM_INCLUDE_DIRS}
+      ${OpenCV_INCLUDE_DIRS}
+    )
+endif()
+
+
 
 # opt_icp_gn
 add_library(opt_icp_gn SHARED
@@ -80,17 +105,40 @@ ament_target_dependencies(opt_icp_gn
   ${dependencies}
 )
 
-# mcl/lego loam ip
-add_library(image_projection SHARED
-  src/imageProjection.cpp
-)
-target_link_libraries(image_projection
-  ${PCL_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-)
-ament_target_dependencies(image_projection
-  ${dependencies}
-)
+if(TRT_ENABLED)
+  add_definitions(-DTRT_ENABLED) 
+  # yolo lego loam ip
+  add_library(image_projection SHARED
+    src/imageProjection.cpp
+  )
+  
+  target_link_libraries(image_projection
+    ${PCL_LIBRARIES}
+    ${OpenCV_LIBRARIES}
+    ${dddmr_trt_LIBRARIES}
+    CUDA::cudart
+  )
+  target_include_directories(image_projection 
+    PRIVATE ${CUDAToolkit_INCLUDE_DIRS}
+  )
+  ament_target_dependencies(image_projection
+    ${dependencies}
+  )
+else()
+  # mcl/lego loam ip
+  add_library(image_projection SHARED
+    src/imageProjection.cpp
+  )
+  target_link_libraries(image_projection
+    ${PCL_LIBRARIES}
+    ${OpenCV_LIBRARIES}
+  )
+  ament_target_dependencies(image_projection
+    ${dependencies}
+  )
+endif()
+
+
 
 #lego loam fa
 add_library(feature_association SHARED
@@ -255,7 +303,7 @@ if(NOT TRT_ENABLED)
 endif()
 
 if(TRT_ENABLED)
-  
+  add_definitions(-DTRT_ENABLED) 
   find_package(CUDAToolkit REQUIRED)
 
   message(STATUS "TensorRT is enabled. Compiling TRT and YOLO features")
@@ -285,44 +333,6 @@ if(TRT_ENABLED)
     ${dependencies}
   )
 
-  # yolo lego loam ip
-  add_library(yolo_image_projection SHARED
-    src/yolo/yoloImageProjection.cpp
-  )
-  
-  target_link_libraries(yolo_image_projection
-    ${PCL_LIBRARIES}
-    ${OpenCV_LIBRARIES}
-    ${dddmr_trt_LIBRARIES}
-    CUDA::cudart
-  )
-  target_include_directories(yolo_ros2_image_sub 
-    PRIVATE ${CUDAToolkit_INCLUDE_DIRS}
-  )
-  ament_target_dependencies(yolo_image_projection
-    ${dependencies}
-  )
-
-  #lego loam yolo bag node
-  add_executable(lego_loam_yolo_bag
-    src/yolo/lego_loam_yolo_bag_node.cpp
-  )
-  target_link_libraries(lego_loam_yolo_bag 
-    interactive_pose_graph_editor
-    yolo_image_projection
-    feature_association
-    map_optimization
-    gtsam
-    ${dddmr_trt_LIBRARIES}
-    CUDA::cudart
-  )
-  target_include_directories(yolo_ros2_image_sub 
-    PRIVATE ${CUDAToolkit_INCLUDE_DIRS}
-  )
-  ament_target_dependencies(lego_loam_yolo_bag
-    ${dependencies}
-  )
-
   install(TARGETS
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
@@ -332,7 +342,6 @@ if(TRT_ENABLED)
   #install node
   install(TARGETS
     yolo_ros2_image_sub
-    lego_loam_yolo_bag
     RUNTIME DESTINATION lib/${PROJECT_NAME}
   )
 
