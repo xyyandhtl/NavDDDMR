@@ -54,18 +54,19 @@ class ImageProjection : public rclcpp::Node
     void findStartEndAngle();
     void resetParameters();
     void projectPointCloud();
-    void groundRemoval();
+    void zPitchRollFeatureRemoval();
     void cloudSegmentation();
     void labelComponents(int row, int col);
     void publishClouds();
     bool allEssentialTFReady(std::string sensor_frame);
-
+    void getNoPitchPoint(PointType& pt_in, PointType& pt_out);
+    
     pcl::PointCloud<PointType>::Ptr _laser_cloud_in;
 
     pcl::PointCloud<PointType>::Ptr _full_cloud;
     pcl::PointCloud<PointType>::Ptr _full_info_cloud;
 
-    pcl::PointCloud<PointType>::Ptr _ground_cloud;
+    pcl::PointCloud<PointType>::Ptr _z_pitch_roll_decisive_feature_cloud;
     pcl::PointCloud<PointType>::Ptr _segmented_cloud;
     pcl::PointCloud<PointType>::Ptr _segmented_cloud_pure;
     pcl::PointCloud<PointType>::Ptr _outlier_cloud;
@@ -85,7 +86,6 @@ class ImageProjection : public rclcpp::Node
     float _segment_theta;
     int _segment_valid_point_num;
     int _segment_valid_line_num;
-    int _ground_scan_index;
     std::string odom_type_;
     std::string baselink_frame_, sensor_frame_;
 
@@ -137,7 +137,8 @@ class ImageProjection : public rclcpp::Node
     std::string trt_model_path_;
     int projected_image_stack_size_;
     std::deque<cv::Mat> projected_image_queue_;
-
+    
+    double sensor_install_pitch_;
 #ifdef TRT_ENABLED
     std::shared_ptr<YoloV8> yolov8_;
 #endif

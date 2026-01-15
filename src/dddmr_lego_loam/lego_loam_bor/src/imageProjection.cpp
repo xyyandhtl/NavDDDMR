@@ -39,6 +39,7 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   pcl::console::setVerbosityLevel(pcl::console::L_ERROR);
   clock_ = this->get_clock();
   last_save_depth_img_time_ = 0;
+  sensor_install_pitch_ = 0.0;
   is_trt_engine_exist_ = false;
   tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
   _pub_projected_image = this->create_publisher<sensor_msgs::msg::Image>("projected_image", 1);
@@ -107,10 +108,6 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   this->get_parameter("imageProjection.segment_valid_line_num",_segment_valid_line_num);
   RCLCPP_INFO(this->get_logger(), "imageProjection.segment_valid_line_num: %d", _segment_valid_line_num);
 
-  declare_parameter("laser.ground_scan_index", rclcpp::ParameterValue(0));
-  this->get_parameter("laser.ground_scan_index", _ground_scan_index);
-  RCLCPP_INFO(this->get_logger(), "laser.ground_scan_index: %d", _ground_scan_index);
-
   declare_parameter("laser.odom_type", rclcpp::ParameterValue(""));
   this->get_parameter("laser.odom_type", odom_type_);
   RCLCPP_INFO(this->get_logger(), "laser.odom_type: %s", odom_type_.c_str());
@@ -172,7 +169,7 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   _full_cloud.reset(new pcl::PointCloud<PointType>());
   _full_info_cloud.reset(new pcl::PointCloud<PointType>());
 
-  _ground_cloud.reset(new pcl::PointCloud<PointType>());
+  _z_pitch_roll_decisive_feature_cloud.reset(new pcl::PointCloud<PointType>());
   _segmented_cloud.reset(new pcl::PointCloud<PointType>());
   _segmented_cloud_pure.reset(new pcl::PointCloud<PointType>());
   _outlier_cloud.reset(new pcl::PointCloud<PointType>());
@@ -194,7 +191,6 @@ void ImageProjection::resetParameters() {
   nanPoint.z = std::numeric_limits<float>::quiet_NaN();
 
   _laser_cloud_in->clear();
-  _ground_cloud->clear();
   _segmented_cloud->clear();
   _segmented_cloud_pure->clear();
   _outlier_cloud->clear();
@@ -255,9 +251,9 @@ bool ImageProjection::allEssentialTFReady(std::string sensor_frame){
       trans_m2ci_.child_frame_id = "camera_init";
       tf2::Quaternion qm2ci;
       tf2::Matrix3x3 m(tf2_trans_b2s_.getRotation());
-      double sensor_install_roll, sensor_install_pitch, sensor_install_yaw;
-      m.getRPY(sensor_install_roll, sensor_install_pitch, sensor_install_yaw);
-      qm2ci.setRPY(1.570795 + sensor_install_pitch, 0.0, 1.570795);
+      double sensor_install_roll, sensor_install_yaw;
+      m.getRPY(sensor_install_roll, sensor_install_pitch_, sensor_install_yaw);
+      qm2ci.setRPY(1.570795 + sensor_install_pitch_, 0.0, 1.570795);
       trans_m2ci_.transform.translation.x = 0.0; trans_m2ci_.transform.translation.y = 0.0; trans_m2ci_.transform.translation.z = 0.0;
       trans_m2ci_.transform.rotation.x = qm2ci.x(); trans_m2ci_.transform.rotation.y = qm2ci.y();
       trans_m2ci_.transform.rotation.z = qm2ci.z(); trans_m2ci_.transform.rotation.w = qm2ci.w();
@@ -291,6 +287,22 @@ bool ImageProjection::allEssentialTFReady(std::string sensor_frame){
   else{
     return true;
   }
+}
+
+void ImageProjection::getNoPitchPoint(PointType& pt_in, PointType& pt_out){
+  //@ remove pitch to robot frame
+  //_full_cloud->points[lowerInd]
+  geometry_msgs::msg::TransformStamped trans_lidar2horizontal;
+  tf2::Quaternion q;
+  q.setRPY( 0, sensor_install_pitch_, 0);
+  trans_lidar2horizontal.transform.rotation.x = q.x(); trans_lidar2horizontal.transform.rotation.y = q.y();
+  trans_lidar2horizontal.transform.rotation.z = q.z(); trans_lidar2horizontal.transform.rotation.w = q.w();
+  Eigen::Affine3d trans_lidar2horizontal_af3 = tf2::transformToEigen(trans_lidar2horizontal);
+
+  pcl::PointCloud<PointType> temp_pc;
+  temp_pc.push_back(pt_in);
+  pcl::transformPointCloud(temp_pc, temp_pc, trans_lidar2horizontal_af3);
+  pt_out = temp_pc.points[0];
 }
 
 void ImageProjection::cloudHandler(
@@ -344,7 +356,7 @@ void ImageProjection::cloudHandler(
   // Range image projection
   projectPointCloud();
   // Mark ground points
-  groundRemoval();
+  zPitchRollFeatureRemoval();
   // Point cloud segmentation
   cloudSegmentation();
   //publish (optionally)
@@ -524,18 +536,27 @@ void ImageProjection::findStartEndAngle() {
       _seg_msg.end_orientation - _seg_msg.start_orientation;
 }
 
-void ImageProjection::groundRemoval() {
+void ImageProjection::zPitchRollFeatureRemoval() {
   // _ground_mat
   // -1, no valid info to check if ground of not
   //  0, initial value, after validation, means not ground
   //  1, ground
+  _z_pitch_roll_decisive_feature_cloud->clear();
   patched_ground_->points.clear();
   patched_ground_edge_->points.clear();
+
+  double ground_fov_bottom = -0.2618;
+  double ground_fov_top = -0.087266;
+  double ground_positive_start = 0;
+  double ground_positive_stop = 3.1415926;
+  double ground_negative_start = 0;
+  double ground_negative_stop = -3.1415926;
+
   for (size_t j = 0; j < _horizontal_scans; ++j) {
     size_t ring_edge = 0;
-    size_t closest_ring_edge = _ground_scan_index;
+    size_t closest_ring_edge = _vertical_scans-1;
     bool do_patch = false;
-    for (size_t i = 0; i < _ground_scan_index; ++i) {
+    for (size_t i = 0; i < _vertical_scans; ++i) {
       size_t lowerInd = j + (i)*_horizontal_scans;
       size_t upperInd = j + (i + 1) * _horizontal_scans;
 
@@ -553,19 +574,43 @@ void ImageProjection::groundRemoval() {
       float dZ =
           _full_cloud->points[upperInd].z - _full_cloud->points[lowerInd].z;
 
-      float vertical_angle = std::atan2(dZ , sqrt(dX * dX + dY * dY + dZ * dZ));
+      float vertical_angle = std::atan2(dZ , sqrt(dX * dX + dY * dY));
 
-      // TODO: review this change
-
-      if ( (vertical_angle) <= 10 * DEG_TO_RAD) {
+      // zPitchRoll feature
+      if ( (vertical_angle) <= 5 * DEG_TO_RAD) {
         _ground_mat(i, j) = 1;
         _ground_mat(i + 1, j) = 1;
-        //x = _full_cloud->points[lowerInd].x + dX*t
-        //y = _full_cloud->points[lowerInd].y + dY*t
-        //z = _full_cloud->points[lowerInd].z + dZ*t
-        if(i<closest_ring_edge && i!=_ground_scan_index) //we dont casting the last one
+        _z_pitch_roll_decisive_feature_cloud->push_back(_full_cloud->points[upperInd]);
+        _z_pitch_roll_decisive_feature_cloud->push_back(_full_cloud->points[lowerInd]);
+      }
+
+      //@ 1. check upper and lower are in ground FOV
+      //@ 2. convert both points by pitch installation to fit real world coordinate
+      bool in_ground_fov = false;
+      
+      double current_i_angle = i * _ang_resolution_Y - _ang_bottom; //_ang_bottom has beedn changed sign at begining
+      
+      double current_j_angle = -1.0*((j - _horizontal_scans * 0.5) * _ang_resolution_X);
+      if(current_i_angle>=ground_fov_bottom && current_i_angle<=ground_fov_top){
+        if(current_j_angle>=0){
+          if(current_j_angle>=ground_positive_start && current_j_angle<=ground_positive_stop){
+            in_ground_fov = true;
+          }
+        }
+        else{
+          if(current_j_angle<=ground_negative_start && current_j_angle>=ground_negative_stop){
+            in_ground_fov = true;
+          } 
+        }
+      }
+
+      if(in_ground_fov){
+        
+        if(i<closest_ring_edge) //we dont casting the last one
           closest_ring_edge = i;
 
+        PointType lowerInd_pt;
+        getNoPitchPoint(_full_cloud->points[lowerInd], lowerInd_pt);
         float ds = sqrt(dX*dX + dY*dY + dZ*dZ);
         
         //@ if distance between is too large, we do not patch, because of too many unknown betweem rings
@@ -575,58 +620,56 @@ void ImageProjection::groundRemoval() {
           for(float t=0; t<=1.0; t+=dt){
             PointType a_pt;
             a_pt.intensity = 0.0;
-            a_pt.x = _full_cloud->points[lowerInd].x + dX*t;
-            a_pt.y = _full_cloud->points[lowerInd].y + dY*t;
-            a_pt.z = _full_cloud->points[lowerInd].z + dZ*t;
+            a_pt.x = lowerInd_pt.x + dX*t;
+            a_pt.y = lowerInd_pt.y + dY*t;
+            a_pt.z = lowerInd_pt.z + dZ*t;
             patched_ground_->push_back(a_pt);
           }
           PointType a_pt;
           a_pt.intensity = 0.0;
-          a_pt.x = _full_cloud->points[lowerInd].x + dX;
-          a_pt.y = _full_cloud->points[lowerInd].y + dY;
-          a_pt.z = _full_cloud->points[lowerInd].z + dZ;
+          a_pt.x = lowerInd_pt.x + dX;
+          a_pt.y = lowerInd_pt.y + dY;
+          a_pt.z = lowerInd_pt.z + dZ;
           patched_ground_->push_back(a_pt);
           do_patch = true;
         }
       }
+
     }
+    
+    //@ we have ring edge, mark intensity for those edge points
     size_t ringEdgeInd = j + ring_edge*_horizontal_scans;
     PointType a_pt;
-    a_pt.x = _full_cloud->points[ringEdgeInd].x;
-    a_pt.y = _full_cloud->points[ringEdgeInd].y;
-    a_pt.z = _full_cloud->points[ringEdgeInd].z;
+    getNoPitchPoint(_full_cloud->points[ringEdgeInd], a_pt);
     a_pt.intensity = 100;
     patched_ground_edge_->push_back(a_pt);
 
-    if(do_patch && first_frame_processed_<5 && closest_ring_edge < _ground_scan_index){
+    if(do_patch && first_frame_processed_<5 && closest_ring_edge < _vertical_scans-1){
       //@ patch ground from closest ring edge to base_link
       size_t closest_ring_edgeInd = j + (closest_ring_edge)*_horizontal_scans;
-      float dXf = -
-          _full_cloud->points[closest_ring_edgeInd].x;
-      float dYf = -
-          _full_cloud->points[closest_ring_edgeInd].y;
-      float dZf = -
-          _full_cloud->points[closest_ring_edgeInd].z;
+      PointType a_pt;
+      getNoPitchPoint(_full_cloud->points[closest_ring_edgeInd], a_pt);
+      float dXf = -a_pt.x;
+      float dYf = -a_pt.y;
+      float dZf = -a_pt.z;
 
       for(float t=0; t<=1.0; t+=0.05){
         PointType a_ptf;
         a_ptf.intensity = 0.0;
-        a_ptf.x = _full_cloud->points[closest_ring_edgeInd].x + dXf*t;
-        a_ptf.y = _full_cloud->points[closest_ring_edgeInd].y + dYf*t;
-        a_ptf.z = _full_cloud->points[closest_ring_edgeInd].z; // mitigate height difference
+        a_ptf.x = a_pt.x + dXf*t;
+        a_ptf.y = a_pt.y + dYf*t;
+        a_ptf.z = a_pt.z; // mitigate height difference
         patched_ground_->push_back(a_ptf);
       }
       PointType a_ptf;
       a_ptf.intensity = 0.0;
-      a_ptf.x = _full_cloud->points[closest_ring_edgeInd].x + dXf;
-      a_ptf.y = _full_cloud->points[closest_ring_edgeInd].y + dYf;
-      a_ptf.z = _full_cloud->points[closest_ring_edgeInd].z;
+      a_ptf.x = a_pt.x + dXf;
+      a_ptf.y = a_pt.y + dYf;
+      a_ptf.z = a_pt.z;
       patched_ground_->push_back(a_ptf);
     }
   }
-  //@ we have ring edge, mark intensity for those edge points
-
-
+  
   dsf_patched_ground_.setInputCloud(patched_ground_);
   dsf_patched_ground_.filter(*patched_ground_);
   dsf_patched_ground_.setInputCloud(patched_ground_edge_);
@@ -652,13 +695,6 @@ void ImageProjection::groundRemoval() {
 #endif
     }
   }
-
-  for (size_t i = 0; i <= _ground_scan_index; ++i) {
-    for (size_t j = 0; j < _horizontal_scans; ++j) {
-      if (_ground_mat(i, j) == 1 && _label_mat(i, j) != -1)
-        _ground_cloud->push_back(_full_cloud->points[j + i * _horizontal_scans]);
-    }
-  }
 }
 
 void ImageProjection::cloudSegmentation() {
@@ -676,13 +712,10 @@ void ImageProjection::cloudSegmentation() {
       if (_label_mat(i, j) > 0 || _ground_mat(i, j) == 1) {
         // outliers that will not be used for optimization (always continue)
         if (_label_mat(i, j) == 999999) {
-          if (i > _ground_scan_index && j % 5 == 0) {
-            _outlier_cloud->push_back(
-                _full_cloud->points[j + i * _horizontal_scans]);
-            continue;
-          } else {
-            continue;
+          if (j % 5 == 0) {
+            _outlier_cloud->push_back(_full_cloud->points[j + i * _horizontal_scans]);
           }
+          continue;
         }
         // majority of ground points are skipped
         if (_ground_mat(i, j) == 1) {
@@ -823,10 +856,9 @@ void ImageProjection::publishClouds() {
 
   //PublishCloud(_pub_outlier_cloud, _outlier_cloud);
   //PublishCloud(_pub_segmented_cloud, _segmented_cloud);
-  PublishCloud(_pub_ground_cloud, patched_ground_);
+  PublishCloud(_pub_ground_cloud, _z_pitch_roll_decisive_feature_cloud);
   PublishCloud(_pub_segmented_cloud_pure, _segmented_cloud_pure);
   //PublishCloud(_pub_full_info_cloud, _full_info_cloud);
-
   if (_pub_segmented_cloud_info->get_subscription_count() != 0) {
     _pub_segmented_cloud_info->publish(_seg_msg);
   }
