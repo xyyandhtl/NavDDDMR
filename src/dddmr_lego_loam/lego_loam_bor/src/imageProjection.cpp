@@ -167,7 +167,11 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   declare_parameter("imageProjection.ground_slope_tolerance", rclcpp::ParameterValue(0.174533));
   this->get_parameter("imageProjection.ground_slope_tolerance", ground_slope_tolerance_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.ground_slope_tolerance: %.6f", ground_slope_tolerance_);
-  
+
+  declare_parameter("imageProjection.patch_first_ring_to_baselink", rclcpp::ParameterValue(true));
+  this->get_parameter("imageProjection.patch_first_ring_to_baselink", patch_first_ring_to_baselink_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.patch_first_ring_to_baselink: %d", patch_first_ring_to_baselink_);
+
   this->declare_parameter("imageProjection.trt_model_path", rclcpp::ParameterValue(""));
   this->get_parameter("imageProjection.trt_model_path", trt_model_path_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.trt_model_path: %s" , trt_model_path_.c_str());
@@ -729,8 +733,9 @@ void ImageProjection::zPitchRollFeatureRemoval() {
         
         double dz_left = fabs(lowerInd_pt_no_pitch.z - lowerInd_left_pt_no_pitch.z);
         double dz_right = fabs(lowerInd_pt_no_pitch.z - lowerInd_right_pt_no_pitch.z);
-        
-        if(!valid_point || fabs(dz_left-dz_right)>0.05){
+        double dz_left2right = fabs(lowerInd_left_pt_no_pitch.z - lowerInd_right_pt_no_pitch.z);
+
+        if(!valid_point || dz_left>0.05 || dz_right>0.05 || dz_left2right>0.05){
           do_patch = false;
           continue;
         }
@@ -782,7 +787,7 @@ void ImageProjection::zPitchRollFeatureRemoval() {
     a_pt.intensity = 100;
     patched_ground_edge_->push_back(a_pt);
 
-    if(do_patch && first_frame_processed_<5 && closest_ring_edge < _vertical_scans-1){
+    if(patch_first_ring_to_baselink_ && do_patch && first_frame_processed_<5 && closest_ring_edge < _vertical_scans-1){
       //@ patch ground from closest ring edge to base_link
       size_t closest_ring_edgeInd = j + (closest_ring_edge)*_horizontal_scans;
       PointType a_pt = _full_cloud->points[closest_ring_edgeInd];

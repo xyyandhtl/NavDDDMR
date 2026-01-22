@@ -28,6 +28,7 @@ lego_loam_ip:
         stitcher_num: 0                          # for non-repetitive scan lidar use 2~4 (i.e. mid360)
         trt_model_path: ""                       # provide trt engine for yolo
         projected_image_stack_size: 1            # Stack this number of image for yolo11n to inference as time elapsed yolo (only work when TRT is loaded)
+        patch_first_ring_to_baselink: false      
 
         ground_fov_bottom: 0.0
         ground_fov_top: 1.39626
@@ -35,6 +36,7 @@ lego_loam_ip:
         ground_positive_stop: 1.5707
         ground_negative_start: 0.0
         ground_negative_stop: -1.5707
+
 
 lego_loam_fa:
   ros__parameters:
