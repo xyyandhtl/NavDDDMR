@@ -39,6 +39,7 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   pcl::console::setVerbosityLevel(pcl::console::L_ERROR);
   clock_ = this->get_clock();
   last_save_depth_img_time_ = 0;
+  sensor_install_pitch_ = 0.0;
   is_trt_engine_exist_ = false;
   tf_static_broadcaster_ = std::make_shared<tf2_ros::StaticTransformBroadcaster>(this);
   _pub_projected_image = this->create_publisher<sensor_msgs::msg::Image>("projected_image", 1);
@@ -107,10 +108,6 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   this->get_parameter("imageProjection.segment_valid_line_num",_segment_valid_line_num);
   RCLCPP_INFO(this->get_logger(), "imageProjection.segment_valid_line_num: %d", _segment_valid_line_num);
 
-  declare_parameter("laser.ground_scan_index", rclcpp::ParameterValue(0));
-  this->get_parameter("laser.ground_scan_index", _ground_scan_index);
-  RCLCPP_INFO(this->get_logger(), "laser.ground_scan_index: %d", _ground_scan_index);
-
   declare_parameter("laser.odom_type", rclcpp::ParameterValue(""));
   this->get_parameter("laser.odom_type", odom_type_);
   RCLCPP_INFO(this->get_logger(), "laser.odom_type: %s", odom_type_.c_str());
@@ -142,11 +139,74 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   declare_parameter("imageProjection.stitcher_num", rclcpp::ParameterValue(0));
   this->get_parameter("imageProjection.stitcher_num", stitcher_num_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.stitcher_num: %d", stitcher_num_);
+
+  declare_parameter("imageProjection.ground_fov_bottom", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ground_fov_bottom", ground_fov_bottom_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ground_fov_bottom: %.6f", ground_fov_bottom_);
+
+  declare_parameter("imageProjection.ground_fov_top", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ground_fov_top", ground_fov_top_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ground_fov_top: %.6f", ground_fov_top_);
+
+  declare_parameter("imageProjection.ground_positive_start", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ground_positive_start", ground_positive_start_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ground_positive_start: %.6f", ground_positive_start_);
+
+  declare_parameter("imageProjection.ground_positive_stop", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ground_positive_stop", ground_positive_stop_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ground_positive_stop: %.6f", ground_positive_stop_);
+
+  declare_parameter("imageProjection.ground_negative_start", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ground_negative_start", ground_negative_start_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ground_negative_start: %.6f", ground_negative_start_);
+
+  declare_parameter("imageProjection.ground_negative_stop", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ground_negative_stop", ground_negative_stop_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ground_negative_stop: %.6f", ground_negative_stop_);
   
+  //@ ignore this region
+  declare_parameter("imageProjection.ignore_fov_bottom", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ignore_fov_bottom", ignore_fov_bottom_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ignore_fov_bottom: %.6f", ignore_fov_bottom_);
+
+  declare_parameter("imageProjection.ignore_fov_top", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ignore_fov_top", ignore_fov_top_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ignore_fov_top: %.6f", ignore_fov_top_);
+
+  declare_parameter("imageProjection.ignore_positive_start", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ignore_positive_start", ignore_positive_start_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ignore_positive_start: %.6f", ignore_positive_start_);
+
+  declare_parameter("imageProjection.ignore_positive_stop", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ignore_positive_stop", ignore_positive_stop_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ignore_positive_stop: %.6f", ignore_positive_stop_);
+
+  declare_parameter("imageProjection.ignore_negative_start", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ignore_negative_start", ignore_negative_start_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ignore_negative_start: %.6f", ignore_negative_start_);
+
+  declare_parameter("imageProjection.ignore_negative_stop", rclcpp::ParameterValue(0.0));
+  this->get_parameter("imageProjection.ignore_negative_stop", ignore_negative_stop_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ignore_negative_stop: %.6f", ignore_negative_stop_);
+
+  declare_parameter("imageProjection.ground_slope_tolerance", rclcpp::ParameterValue(0.174533));
+  this->get_parameter("imageProjection.ground_slope_tolerance", ground_slope_tolerance_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.ground_slope_tolerance: %.6f", ground_slope_tolerance_);
+
+  declare_parameter("imageProjection.patch_first_ring_to_baselink", rclcpp::ParameterValue(true));
+  this->get_parameter("imageProjection.patch_first_ring_to_baselink", patch_first_ring_to_baselink_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.patch_first_ring_to_baselink: %d", patch_first_ring_to_baselink_);
+
   this->declare_parameter("imageProjection.trt_model_path", rclcpp::ParameterValue(""));
   this->get_parameter("imageProjection.trt_model_path", trt_model_path_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.trt_model_path: %s" , trt_model_path_.c_str());
-  
+
+  this->declare_parameter("imageProjection.projected_image_stack_size", rclcpp::ParameterValue(0));
+  this->get_parameter("imageProjection.projected_image_stack_size", projected_image_stack_size_);
+  RCLCPP_INFO(this->get_logger(), "imageProjection.projected_image_stack_size: %d" , projected_image_stack_size_);
+  if(projected_image_stack_size_<1){
+    projected_image_stack_size_ = 1;
+  }
   std::string filename = "my_file.txt"; // Replace with your file name
 
   if (std::filesystem::exists(trt_model_path_)) {
@@ -166,7 +226,7 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   _full_cloud.reset(new pcl::PointCloud<PointType>());
   _full_info_cloud.reset(new pcl::PointCloud<PointType>());
 
-  _ground_cloud.reset(new pcl::PointCloud<PointType>());
+  _z_pitch_roll_decisive_feature_cloud.reset(new pcl::PointCloud<PointType>());
   _segmented_cloud.reset(new pcl::PointCloud<PointType>());
   _segmented_cloud_pure.reset(new pcl::PointCloud<PointType>());
   _outlier_cloud.reset(new pcl::PointCloud<PointType>());
@@ -188,7 +248,6 @@ void ImageProjection::resetParameters() {
   nanPoint.z = std::numeric_limits<float>::quiet_NaN();
 
   _laser_cloud_in->clear();
-  _ground_cloud->clear();
   _segmented_cloud->clear();
   _segmented_cloud_pure->clear();
   _outlier_cloud->clear();
@@ -240,44 +299,31 @@ bool ImageProjection::allEssentialTFReady(std::string sensor_frame){
       tf2_trans_b2s_.setRotation(tf2::Quaternion(trans_b2s_.transform.rotation.x, trans_b2s_.transform.rotation.y, trans_b2s_.transform.rotation.z, trans_b2s_.transform.rotation.w));
       tf2_trans_b2s_.setOrigin(tf2::Vector3(trans_b2s_.transform.translation.x, trans_b2s_.transform.translation.y, trans_b2s_.transform.translation.z));
       
+      //@ Get sensor pitch and transform them to correct orientation
+      //@ Generate map2camera_init. This will be used to export final point cloud/pose graph based on map frame
+      //@ "0 0 0 pi/2 0 pi/2 map -> camera_init" and "0 0 0 -pi/2 -pi/2 0 camera -> base_link"
+      //@affine_3d for pcl conversion, tf2::stamped for key_pose
+      
+      trans_m2ci_.header.frame_id = "map";
+      trans_m2ci_.child_frame_id = "camera_init";
+      tf2::Quaternion qm2ci;
       tf2::Matrix3x3 m(tf2_trans_b2s_.getRotation());
-      double roll;
-      m.getRPY(roll, _sensor_mount_angle, _sensor_yaw_angle);
+      double sensor_install_roll, sensor_install_yaw;
+      m.getRPY(sensor_install_roll, sensor_install_pitch_, sensor_install_yaw);
+      qm2ci.setRPY(1.570795 + sensor_install_pitch_, 0.0, 1.570795);
+      trans_m2ci_.transform.translation.x = 0.0; trans_m2ci_.transform.translation.y = 0.0; trans_m2ci_.transform.translation.z = 0.0;
+      trans_m2ci_.transform.rotation.x = qm2ci.x(); trans_m2ci_.transform.rotation.y = qm2ci.y();
+      trans_m2ci_.transform.rotation.z = qm2ci.z(); trans_m2ci_.transform.rotation.w = qm2ci.w();
       
-      //@ we got pitch, remove pitch in the tf
-      tf2::Quaternion zero_pitch;
-      zero_pitch.setRPY(0, 0, _sensor_yaw_angle);
-      tf2_trans_b2s_.setRotation(zero_pitch);
-      trans_b2s_.transform.rotation.x = tf2_trans_b2s_.getRotation().x();
-      trans_b2s_.transform.rotation.y = tf2_trans_b2s_.getRotation().y();
-      trans_b2s_.transform.rotation.z = tf2_trans_b2s_.getRotation().z();
-      trans_b2s_.transform.rotation.w = tf2_trans_b2s_.getRotation().w();
-
-      //@ pubish a static tf for a frame that removing pitch
-      geometry_msgs::msg::TransformStamped trans_sensor2sensor_no_pitch;
-      trans_sensor2sensor_no_pitch.header.frame_id = sensor_frame;
-      trans_sensor2sensor_no_pitch.child_frame_id = sensor_frame+"_pitch_removed";
-      trans_sensor2sensor_no_pitch.transform.translation.x = 0.0; trans_sensor2sensor_no_pitch.transform.translation.y = 0.0; trans_sensor2sensor_no_pitch.transform.translation.z = 0.0;
-      tf2::Quaternion compensate_pitch;
-      compensate_pitch.setRPY(0, -1.0*_sensor_mount_angle, 0);
-      trans_sensor2sensor_no_pitch.transform.rotation.x = compensate_pitch.x();
-      trans_sensor2sensor_no_pitch.transform.rotation.y = compensate_pitch.y();
-      trans_sensor2sensor_no_pitch.transform.rotation.z = compensate_pitch.z();
-      trans_sensor2sensor_no_pitch.transform.rotation.w = compensate_pitch.w();
+      tf_static_broadcaster_->sendTransform(trans_m2ci_);
       
-      tf_static_broadcaster_->sendTransform(trans_sensor2sensor_no_pitch);
-
-
       // camera to sensor
       tf2::Quaternion qc2s;
-      qc2s.setRPY(0,-1.570795,-1.570795);
+      qc2s.setRPY(0, -1.570795, -1.570795);
       tf2_trans_c2s_.setOrigin(tf2::Vector3(0, 0, 0));
       tf2_trans_c2s_.setRotation(qc2s);
       
-      //camera to base_link/base_footprint
-      tf2_trans_c2b_.mult(tf2_trans_c2s_, tf2_trans_b2s_.inverse());
       got_baselink2sensor_tf_= true;
-
 
       trans_c2s_.transform.translation.x = tf2_trans_c2s_.getOrigin().x(); 
       trans_c2s_.transform.translation.y = tf2_trans_c2s_.getOrigin().y(); 
@@ -286,15 +332,7 @@ bool ImageProjection::allEssentialTFReady(std::string sensor_frame){
       trans_c2s_.transform.rotation.y = tf2_trans_c2s_.getRotation().y();
       trans_c2s_.transform.rotation.z = tf2_trans_c2s_.getRotation().z();
       trans_c2s_.transform.rotation.w = tf2_trans_c2s_.getRotation().w();
-      
-      trans_c2b_.child_frame_id = baselink_frame_;
-      trans_c2b_.transform.translation.x = tf2_trans_c2b_.getOrigin().x(); 
-      trans_c2b_.transform.translation.y = tf2_trans_c2b_.getOrigin().y(); 
-      trans_c2b_.transform.translation.z = tf2_trans_c2b_.getOrigin().z();
-      trans_c2b_.transform.rotation.x = tf2_trans_c2b_.getRotation().x();
-      trans_c2b_.transform.rotation.y = tf2_trans_c2b_.getRotation().y();
-      trans_c2b_.transform.rotation.z = tf2_trans_c2b_.getRotation().z();
-      trans_c2b_.transform.rotation.w = tf2_trans_c2b_.getRotation().w();
+
       return true;
     }
     catch (tf2::TransformException& e)
@@ -319,6 +357,7 @@ void ImageProjection::cloudHandler(
   // Copy and remove NAN points
   pcl::fromROSMsg(*laserCloudMsg, *_laser_cloud_in);
   std::vector<int> indices;
+  _laser_cloud_in->is_dense = false;
   pcl::removeNaNFromPointCloud(*_laser_cloud_in, *_laser_cloud_in, indices);
 
   //@if not stitch, save copy time
@@ -342,23 +381,13 @@ void ImageProjection::cloudHandler(
 
   _seg_msg.header = laserCloudMsg->header;
   _seg_msg.header.stamp = laserCloudMsg->header.stamp;
-  _seg_msg.header.frame_id = laserCloudMsg->header.frame_id+"_pitch_removed";
+  _seg_msg.header.frame_id = laserCloudMsg->header.frame_id;
 
-  // transform tilted lidar back to horizontal
-  
-  geometry_msgs::msg::TransformStamped trans_lidar2horizontal;
-  tf2::Quaternion q;
-  q.setRPY( 0, _sensor_mount_angle, 0);
-  trans_lidar2horizontal.transform.rotation.x = q.x(); trans_lidar2horizontal.transform.rotation.y = q.y();
-  trans_lidar2horizontal.transform.rotation.z = q.z(); trans_lidar2horizontal.transform.rotation.w = q.w();
-  Eigen::Affine3d trans_lidar2horizontal_af3 = tf2::transformToEigen(trans_lidar2horizontal);
-  pcl::transformPointCloud(*_laser_cloud_in, *_laser_cloud_in, trans_lidar2horizontal_af3);
-  
   findStartEndAngle();
   // Range image projection
   projectPointCloud();
   // Mark ground points
-  groundRemoval();
+  zPitchRollFeatureRemoval();
   // Point cloud segmentation
   cloudSegmentation();
   //publish (optionally)
@@ -371,7 +400,8 @@ void ImageProjection::projectPointCloud() {
   //cv image
   range_mat_removing_moving_object_ = cv::Mat::zeros(_vertical_scans, _horizontal_scans, CV_8UC3); 
   cv::Mat projected_image(_vertical_scans, _horizontal_scans, CV_8UC3, cv::Scalar(0,0,0));
-  
+  cv::Mat projected_stack_result;
+
   // range image projection
   const size_t cloudSize = _laser_cloud_in->points.size();
 
@@ -387,7 +417,6 @@ void ImageProjection::projectPointCloud() {
 
     // find the row and column index in the image for this point
     float verticalAngle = std::asin(thisPoint.z / range);
-        //std::atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y));
 
     int rowIdn = (verticalAngle + _ang_bottom) / _ang_resolution_Y;
     if (rowIdn < 0 || rowIdn >= _vertical_scans) {
@@ -414,12 +443,8 @@ void ImageProjection::projectPointCloud() {
     //@ generate projected_image
     //@ the rowIdn for _range_mat is from top to bottom, which means the line 0 is the first row
     //@ to visualize the depth image more intuitively, we make line 0 to the last rowIdn
-    // for columnIdn, we need to rotate it 180 degree
-    //int viscolumnIdn = -round((horizonAngle) / _ang_resolution_X) + _horizontal_scans * 0.5 + _horizontal_scans * 0.25;
-    //if(viscolumnIdn>=_horizontal_scans)
-    //  viscolumnIdn = viscolumnIdn - _horizontal_scans;
+
     if(rowIdn>0 && rowIdn<=_vertical_scans && viscolumnIdn<_horizontal_scans && viscolumnIdn>=0){
-      //projected_image.at<unsigned char>(_vertical_scans-rowIdn, viscolumnIdn) = static_cast<unsigned char>(range*51);
 
       uint16_t scaled_int = static_cast<uint16_t>(range*100);
       // 2. Split the 16-bit integer into high and low bytes
@@ -429,9 +454,8 @@ void ImageProjection::projectPointCloud() {
       projected_image.at<cv::Vec3b>(_vertical_scans-rowIdn, viscolumnIdn)[0] = high_byte;
       projected_image.at<cv::Vec3b>(_vertical_scans-rowIdn, viscolumnIdn)[1] = low_byte;
       projected_image.at<cv::Vec3b>(_vertical_scans-rowIdn, viscolumnIdn)[2] = 0;
-
-    }
       
+    }
 
     thisPoint.intensity = (float)rowIdn + (float)viscolumnIdn / 10000.0;
     size_t index = viscolumnIdn + rowIdn * _horizontal_scans;
@@ -441,10 +465,26 @@ void ImageProjection::projectPointCloud() {
     _full_info_cloud->points[index].intensity = range;
   }
   
+  //@ queue projected image
+  if(projected_image_queue_.size()<projected_image_stack_size_){
+    projected_image_queue_.push_back(projected_image);
+  }
+  else{
+    projected_image_queue_.push_back(projected_image);
+    projected_image_queue_.pop_front();
+  }
+
+  //@ stack all projected image to get time elapse
+  projected_stack_result = projected_image_queue_.front();
+  for(auto it=projected_image_queue_.begin()+1; it!=projected_image_queue_.end(); it++){
+    cv::vconcat(projected_stack_result, (*it), projected_stack_result);
+  }
+
+
 #ifdef TRT_ENABLED
   
-  if(to_fa_ && is_trt_engine_exist_){ //to_fa means we are not exporting depth image, so skip inference to save time 
-  cv::Mat inferenced_image = projected_image;
+  if(to_fa_ && is_trt_engine_exist_ && projected_image_queue_.size()==projected_image_stack_size_){ //to_fa means we are not exporting depth image, so skip inference to save time 
+  cv::Mat inferenced_image = projected_stack_result;
   // Run inference
   const auto objects = yolov8_->detectObjects(inferenced_image);
 
@@ -466,9 +506,19 @@ void ImageProjection::projectPointCloud() {
   cv::Mat inverted_mask;
   cv::bitwise_not(full_sized_mask, inverted_mask);
   cv::bitwise_and(inferenced_image, inferenced_image, range_mat_removing_moving_object_, inverted_mask);
-
+  
+  
+  //@ cut final inferenced image
+  int x_start = 0;
+  int y_start = inferenced_image.rows - inferenced_image.rows/projected_image_stack_size_;
+  int crop_width = inferenced_image.cols;
+  int crop_height = inferenced_image.rows/projected_image_stack_size_;
+  cv::Rect myROI(x_start, y_start, crop_width, crop_height);
+  cv::Mat last_row_of_projected_image = inferenced_image(myROI);//@inferenced image is sizeof(projected_image_stack_size_ by 1)
+  range_mat_removing_moving_object_ = range_mat_removing_moving_object_(myROI);
+  
   cv_bridge::CvImage img_annotated;
-  img_annotated.image = inferenced_image;
+  img_annotated.image = last_row_of_projected_image;
   img_annotated.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
   sensor_msgs::msg::Image::SharedPtr ros2_annotated_img = img_annotated.toImageMsg();
   pub_annotated_img_->publish(*ros2_annotated_img);
@@ -476,23 +526,26 @@ void ImageProjection::projectPointCloud() {
 #endif
 
   cv_bridge::CvImage img_bridge;
-  img_bridge.image = projected_image;
+  img_bridge.image = projected_stack_result;
   img_bridge.encoding = sensor_msgs::image_encodings::TYPE_8UC3;
   sensor_msgs::msg::Image::SharedPtr msg = img_bridge.toImageMsg();
   _pub_projected_image->publish(*msg);
 
   //@ write depth img
-  double imge_time = _seg_msg.header.stamp.sec + _seg_msg.header.stamp.nanosec/1e9;
+  double image_time = _seg_msg.header.stamp.sec + _seg_msg.header.stamp.nanosec/1e9;
 
-  if(!to_fa_ && imge_time - last_save_depth_img_time_ >= time_step_between_depth_image_){
+  if(!to_fa_ && image_time - last_save_depth_img_time_ >= time_step_between_depth_image_){
     std::string timestamp;
     std::stringstream ss;
     ss << _seg_msg.header.stamp.sec << "_" << std::setw(9) << std::setfill('0') << _seg_msg.header.stamp.nanosec;
     timestamp = ss.str();
-    std::string spec = std::to_string(_vertical_scans)+"x"+std::to_string(_horizontal_scans)+"_st"+std::to_string(stitcher_num_);
+    std::string spec = 
+      std::to_string(_vertical_scans)+"x"+std::to_string(_horizontal_scans) \
+      +"_stitch"+std::to_string(stitcher_num_) \
+      +"_vstack"+std::to_string(projected_image_stack_size_);
     std::string file_name = mapping_dir_string_ + "/" + timestamp + "_" + spec + ".png";
-    cv::imwrite(file_name, projected_image);
-    last_save_depth_img_time_ = imge_time;
+    cv::imwrite(file_name, projected_stack_result);
+    last_save_depth_img_time_ = image_time;
   }
 
 }
@@ -514,18 +567,52 @@ void ImageProjection::findStartEndAngle() {
       _seg_msg.end_orientation - _seg_msg.start_orientation;
 }
 
-void ImageProjection::groundRemoval() {
+void ImageProjection::getNoPitchPoint(PointType& pt_in, PointType& pt_out){
+  //@ remove pitch to robot frame
+  //_full_cloud->points[lowerInd]
+  geometry_msgs::msg::TransformStamped trans_lidar2horizontal;
+  tf2::Quaternion q;
+  q.setRPY( 0, sensor_install_pitch_, 0);
+  trans_lidar2horizontal.transform.rotation.x = q.x(); trans_lidar2horizontal.transform.rotation.y = q.y();
+  trans_lidar2horizontal.transform.rotation.z = q.z(); trans_lidar2horizontal.transform.rotation.w = q.w();
+  Eigen::Affine3d trans_lidar2horizontal_af3 = tf2::transformToEigen(trans_lidar2horizontal);
+
+  pcl::PointCloud<PointType> temp_pc;
+  temp_pc.push_back(pt_in);
+  pcl::transformPointCloud(temp_pc, temp_pc, trans_lidar2horizontal_af3);
+  pt_out = temp_pc.points[0];
+}
+
+void ImageProjection::zPitchRollFeatureRemoval() {
+
+  geometry_msgs::msg::TransformStamped trans_lidar2horizontal;
+  tf2::Quaternion q;
+  q.setRPY( 0, sensor_install_pitch_, 0);
+  trans_lidar2horizontal.transform.rotation.x = q.x(); trans_lidar2horizontal.transform.rotation.y = q.y();
+  trans_lidar2horizontal.transform.rotation.z = q.z(); trans_lidar2horizontal.transform.rotation.w = q.w();
+  Eigen::Affine3d trans_lidar2horizontal_af3 = tf2::transformToEigen(trans_lidar2horizontal);
+
+  pcl::PointCloud<PointType> _full_cloud_no_pitch;
+  pcl::transformPointCloud(*_full_cloud, _full_cloud_no_pitch, trans_lidar2horizontal_af3);
+
   // _ground_mat
   // -1, no valid info to check if ground of not
   //  0, initial value, after validation, means not ground
   //  1, ground
+  _z_pitch_roll_decisive_feature_cloud->clear();
   patched_ground_->points.clear();
   patched_ground_edge_->points.clear();
+
   for (size_t j = 0; j < _horizontal_scans; ++j) {
     size_t ring_edge = 0;
-    size_t closest_ring_edge = _ground_scan_index;
+    size_t closest_ring_edge = _vertical_scans-1;
     bool do_patch = false;
-    for (size_t i = 0; i < _ground_scan_index; ++i) {
+    for (size_t i = 0; i < _vertical_scans; ++i) {
+
+      if(_range_mat(i,j)==FLT_MAX){
+        _label_mat(i, j) = -1;
+      }
+
       size_t lowerInd = j + (i)*_horizontal_scans;
       size_t upperInd = j + (i + 1) * _horizontal_scans;
 
@@ -536,6 +623,29 @@ void ImageProjection::groundRemoval() {
         continue;
       }
 
+      //@ if the point should be ignore, i.e. lidar see the robot body itself
+      
+      double current_i_angle = i * _ang_resolution_Y - _ang_bottom; //_ang_bottom has beedn changed sign at begining
+      double current_iplus1_angle = (i+1) * _ang_resolution_Y - _ang_bottom;
+      double current_j_angle = -1.0*((j - _horizontal_scans * 0.5) * _ang_resolution_X);
+
+      if(current_i_angle>=ignore_fov_bottom_ && current_i_angle<=ignore_fov_top_ &&
+         current_iplus1_angle>=ignore_fov_bottom_ && current_iplus1_angle<=ignore_fov_top_){
+
+        if(current_j_angle>=0){
+          if(current_j_angle>=ignore_positive_start_ && current_j_angle<=ignore_positive_stop_){
+            _ground_mat(i, j) = -1;
+            continue;
+          }
+        }
+        else{
+          if(current_j_angle<=ignore_negative_start_ && current_j_angle>=ignore_negative_stop_){
+            _ground_mat(i, j) = -1;
+            continue;
+          } 
+        }
+      }
+
       float dX =
           _full_cloud->points[upperInd].x - _full_cloud->points[lowerInd].x;
       float dY =
@@ -543,19 +653,157 @@ void ImageProjection::groundRemoval() {
       float dZ =
           _full_cloud->points[upperInd].z - _full_cloud->points[lowerInd].z;
 
-      float vertical_angle = std::atan2(dZ , sqrt(dX * dX + dY * dY + dZ * dZ));
+      float vertical_angle = std::atan2(dZ , sqrt(dX * dX + dY * dY));
 
-      // TODO: review this change
-
-      if ( (vertical_angle) <= 10 * DEG_TO_RAD) {
+      // zPitchRoll feature
+      if ( (vertical_angle) <= 5 * DEG_TO_RAD) {
         _ground_mat(i, j) = 1;
         _ground_mat(i + 1, j) = 1;
-        //x = _full_cloud->points[lowerInd].x + dX*t
-        //y = _full_cloud->points[lowerInd].y + dY*t
-        //z = _full_cloud->points[lowerInd].z + dZ*t
-        if(i<closest_ring_edge && i!=_ground_scan_index) //we dont casting the last one
+        _z_pitch_roll_decisive_feature_cloud->push_back(_full_cloud->points[upperInd]);
+        _z_pitch_roll_decisive_feature_cloud->push_back(_full_cloud->points[lowerInd]);
+      
+        //We have found zPitchRoll features, label something we dont need for xYYawfeatures
+        _label_mat(i, j) = -1;
+        _label_mat(i+1, j) = -1;
+      
+#ifdef TRT_ENABLED
+        // TRT object detection to remove things we dont want to use for SLAM, such as moving object
+        if(is_trt_engine_exist_ && projected_image_queue_.size()==projected_image_stack_size_){
+          // it was generated as _range_mat(rowIdn, viscolumnIdn) = range;
+          cv::Vec3b pixel = range_mat_removing_moving_object_.at<cv::Vec3b>(_vertical_scans-i, j);
+          if(pixel[0]==0 && pixel[1]==0 && pixel[2]==0){
+            _label_mat(i, j) = -1;
+          }
+        }
+#endif
+
+      }
+
+      //@ 1. check upper and lower are in ground FOV
+      //@ 2. check two point slope is less than some reasonable value
+
+      bool in_ground_fov = false;
+
+      if(current_i_angle>=ground_fov_bottom_ && current_i_angle<=ground_fov_top_ &&
+         current_iplus1_angle>=ground_fov_bottom_ && current_iplus1_angle<=ground_fov_top_){
+
+        if(current_j_angle>=0){
+          if(current_j_angle>=ground_positive_start_ && current_j_angle<=ground_positive_stop_){
+            in_ground_fov = true;
+          }
+        }
+        else{
+          if(current_j_angle<=ground_negative_start_ && current_j_angle>=ground_negative_stop_){
+            in_ground_fov = true;
+          } 
+        }
+      }
+
+      if(in_ground_fov){
+
+        PointType lowerInd_pt_no_pitch, upperInd_pt_no_pitch;
+        PointType lowerInd_left_pt_no_pitch;
+        PointType lowerInd_right_pt_no_pitch;
+        bool valid_point = false;
+        size_t horizontal_search_number = 50;
+        if(j<horizontal_search_number){
+          lowerInd_pt_no_pitch = _full_cloud_no_pitch[lowerInd];
+          for(int jj=1;jj<horizontal_search_number;jj++){
+            size_t compensateInd = 0;
+            if(lowerInd-jj<0){
+              compensateInd = lowerInd-jj+_horizontal_scans;
+            }
+            else{
+              compensateInd = lowerInd-jj;
+            }
+            lowerInd_left_pt_no_pitch = _full_cloud_no_pitch[compensateInd];
+            if(fabs(lowerInd_pt_no_pitch.y - lowerInd_left_pt_no_pitch.y)>0.05){
+              valid_point = true;
+              break;
+            }
+              
+          }
+          for(int jj=1;jj<horizontal_search_number;jj++){
+            lowerInd_right_pt_no_pitch = _full_cloud_no_pitch[lowerInd+jj];
+            if(fabs(lowerInd_pt_no_pitch.y - lowerInd_right_pt_no_pitch.y)>0.05){
+              valid_point = true;
+              break;
+            }
+              
+          }
+        }
+
+        else if(j>_horizontal_scans-horizontal_search_number-1){
+          lowerInd_pt_no_pitch = _full_cloud_no_pitch[lowerInd];
+          for(int jj=1;jj<horizontal_search_number;jj++){
+            lowerInd_left_pt_no_pitch = _full_cloud_no_pitch[lowerInd-jj];
+            if(fabs(lowerInd_pt_no_pitch.y - lowerInd_left_pt_no_pitch.y)>0.05){
+              valid_point = true;
+              break;
+            }
+          }
+          for(int jj=1;jj<horizontal_search_number;jj++){
+            size_t compensateInd = 0;
+            if(lowerInd+jj>_horizontal_scans-1){
+              compensateInd = (lowerInd+jj) - _horizontal_scans;
+            }
+            else{
+              compensateInd = lowerInd+jj;
+            }
+            lowerInd_right_pt_no_pitch = _full_cloud_no_pitch[compensateInd];
+            if(fabs(lowerInd_pt_no_pitch.y - lowerInd_right_pt_no_pitch.y)>0.05){
+              valid_point = true;
+              break;
+            }
+          }
+        }
+        else{
+          lowerInd_pt_no_pitch = _full_cloud_no_pitch[lowerInd];
+          for(int jj=1;jj<horizontal_search_number;jj++){
+            lowerInd_left_pt_no_pitch = _full_cloud_no_pitch[lowerInd-jj];
+            if(fabs(lowerInd_pt_no_pitch.y - lowerInd_left_pt_no_pitch.y)>0.05){
+              valid_point = true;
+              break;
+            }
+          }
+          for(int jj=1;jj<horizontal_search_number;jj++){
+            lowerInd_right_pt_no_pitch = _full_cloud_no_pitch[lowerInd+jj];
+            if(fabs(lowerInd_pt_no_pitch.y - lowerInd_right_pt_no_pitch.y)>0.05){
+              valid_point = true;
+              break;
+            } 
+          }
+        }
+        
+        double dz_left = fabs(lowerInd_pt_no_pitch.z - lowerInd_left_pt_no_pitch.z);
+        double dz_right = fabs(lowerInd_pt_no_pitch.z - lowerInd_right_pt_no_pitch.z);
+        double dz_left2right = fabs(lowerInd_left_pt_no_pitch.z - lowerInd_right_pt_no_pitch.z);
+
+        if(!valid_point || dz_left>0.05 || dz_right>0.05 || dz_left2right>0.05){
+          do_patch = false;
+          _segmented_cloud_pure->push_back(_full_cloud->points[lowerInd]);
+          continue;
+        }
+
+        if(i<closest_ring_edge) //we dont casting the last one
           closest_ring_edge = i;
 
+        lowerInd_pt_no_pitch = _full_cloud_no_pitch[lowerInd];
+        upperInd_pt_no_pitch = _full_cloud_no_pitch[upperInd];
+
+        PointType lowerInd_pt = _full_cloud->points[lowerInd];
+        PointType upperInd_pt = _full_cloud->points[upperInd];
+
+        float dXg = upperInd_pt_no_pitch.x - lowerInd_pt_no_pitch.x;
+        float dYg = upperInd_pt_no_pitch.y - lowerInd_pt_no_pitch.y;
+        float dZg = upperInd_pt_no_pitch.z - lowerInd_pt_no_pitch.z;
+
+        float vertical_angle = std::atan2(dZg , sqrt(dXg * dXg + dYg * dYg));
+        if ( fabs(vertical_angle) > ground_slope_tolerance_ && fabs(dZg)>0.03) {
+          do_patch = false;
+          _segmented_cloud_pure->push_back(_full_cloud->points[lowerInd]);
+          continue;
+        }
         float ds = sqrt(dX*dX + dY*dY + dZ*dZ);
         
         //@ if distance between is too large, we do not patch, because of too many unknown betweem rings
@@ -565,90 +813,67 @@ void ImageProjection::groundRemoval() {
           for(float t=0; t<=1.0; t+=dt){
             PointType a_pt;
             a_pt.intensity = 0.0;
-            a_pt.x = _full_cloud->points[lowerInd].x + dX*t;
-            a_pt.y = _full_cloud->points[lowerInd].y + dY*t;
-            a_pt.z = _full_cloud->points[lowerInd].z + dZ*t;
+            a_pt.x = lowerInd_pt.x + dX*t;
+            a_pt.y = lowerInd_pt.y + dY*t;
+            a_pt.z = lowerInd_pt.z + dZ*t;
             patched_ground_->push_back(a_pt);
           }
           PointType a_pt;
           a_pt.intensity = 0.0;
-          a_pt.x = _full_cloud->points[lowerInd].x + dX;
-          a_pt.y = _full_cloud->points[lowerInd].y + dY;
-          a_pt.z = _full_cloud->points[lowerInd].z + dZ;
+          a_pt.x = lowerInd_pt.x + dX;
+          a_pt.y = lowerInd_pt.y + dY;
+          a_pt.z = lowerInd_pt.z + dZ;
           patched_ground_->push_back(a_pt);
           do_patch = true;
         }
       }
+      else{
+        _segmented_cloud_pure->push_back(_full_cloud->points[lowerInd]);
+      }
     }
-    size_t ringEdgeInd = j + ring_edge*_horizontal_scans;
-    PointType a_pt;
-    a_pt.x = _full_cloud->points[ringEdgeInd].x;
-    a_pt.y = _full_cloud->points[ringEdgeInd].y;
-    a_pt.z = _full_cloud->points[ringEdgeInd].z;
+    
+    //@ we have ring edge, mark intensity for those edge points
+    size_t ringEdgeInd = j + (ring_edge-1)*_horizontal_scans;
+    PointType a_pt = _full_cloud->points[ringEdgeInd];
     a_pt.intensity = 100;
     patched_ground_edge_->push_back(a_pt);
 
-    if(do_patch && first_frame_processed_<5 && closest_ring_edge < _ground_scan_index){
+    if(patch_first_ring_to_baselink_ && do_patch && first_frame_processed_<5 && closest_ring_edge < _vertical_scans-1){
       //@ patch ground from closest ring edge to base_link
       size_t closest_ring_edgeInd = j + (closest_ring_edge)*_horizontal_scans;
-      float dXf = -
-          _full_cloud->points[closest_ring_edgeInd].x;
-      float dYf = -
-          _full_cloud->points[closest_ring_edgeInd].y;
-      float dZf = -
-          _full_cloud->points[closest_ring_edgeInd].z;
+      PointType a_pt = _full_cloud->points[closest_ring_edgeInd];
+      float dXf = -a_pt.x;
+      float dYf = -a_pt.y;
+      float dZf = -a_pt.z;
 
       for(float t=0; t<=1.0; t+=0.05){
         PointType a_ptf;
         a_ptf.intensity = 0.0;
-        a_ptf.x = _full_cloud->points[closest_ring_edgeInd].x + dXf*t;
-        a_ptf.y = _full_cloud->points[closest_ring_edgeInd].y + dYf*t;
-        a_ptf.z = _full_cloud->points[closest_ring_edgeInd].z; // mitigate height difference
+        a_ptf.x = a_pt.x + dXf*t;
+        a_ptf.y = a_pt.y + dYf*t;
+        a_ptf.z = a_pt.z; // mitigate height difference
         patched_ground_->push_back(a_ptf);
       }
       PointType a_ptf;
       a_ptf.intensity = 0.0;
-      a_ptf.x = _full_cloud->points[closest_ring_edgeInd].x + dXf;
-      a_ptf.y = _full_cloud->points[closest_ring_edgeInd].y + dYf;
-      a_ptf.z = _full_cloud->points[closest_ring_edgeInd].z;
+      a_ptf.x = a_pt.x + dXf;
+      a_ptf.y = a_pt.y + dYf;
+      a_ptf.z = a_pt.z;
       patched_ground_->push_back(a_ptf);
     }
   }
-  //@ we have ring edge, mark intensity for those edge points
 
+  patched_ground_->is_dense = false;
+  patched_ground_edge_->is_dense = false;
+  std::vector<int> tmp_indices, tmp_indices2;
+  pcl::removeNaNFromPointCloud(*patched_ground_, *patched_ground_, tmp_indices);
+  pcl::removeNaNFromPointCloud(*patched_ground_edge_, *patched_ground_edge_, tmp_indices2);
 
   dsf_patched_ground_.setInputCloud(patched_ground_);
   dsf_patched_ground_.filter(*patched_ground_);
   dsf_patched_ground_.setInputCloud(patched_ground_edge_);
   dsf_patched_ground_.filter(*patched_ground_edge_); 
-  // extract ground cloud (_ground_mat == 1)
-  // mark entry that doesn't need to label (ground and invalid point) for
-  // segmentation note that ground remove is from 0~_N_scan-1, need _range_mat
-  // for mark label matrix for the 16th scan
-  for (size_t i = 0; i < _vertical_scans; ++i) {
-    for (size_t j = 0; j < _horizontal_scans; ++j) {
-      if (_ground_mat(i, j) == 1 ||
-          _range_mat(i, j) == FLT_MAX) {
-        _label_mat(i, j) = -1;
-      }
-#ifdef TRT_ENABLED
-      if(is_trt_engine_exist_){
-        // it was generated as _range_mat(rowIdn, viscolumnIdn) = range;
-        cv::Vec3b pixel = range_mat_removing_moving_object_.at<cv::Vec3b>(_vertical_scans-i, j);
-        if(pixel[0]==0 && pixel[1]==0 && pixel[2]==0){
-          _label_mat(i, j) = -1;
-        }
-      }
-#endif
-    }
-  }
 
-  for (size_t i = 0; i <= _ground_scan_index; ++i) {
-    for (size_t j = 0; j < _horizontal_scans; ++j) {
-      if (_ground_mat(i, j) == 1)
-        _ground_cloud->push_back(_full_cloud->points[j + i * _horizontal_scans]);
-    }
-  }
 }
 
 void ImageProjection::cloudSegmentation() {
@@ -666,13 +891,10 @@ void ImageProjection::cloudSegmentation() {
       if (_label_mat(i, j) > 0 || _ground_mat(i, j) == 1) {
         // outliers that will not be used for optimization (always continue)
         if (_label_mat(i, j) == 999999) {
-          if (i > _ground_scan_index && j % 5 == 0) {
-            _outlier_cloud->push_back(
-                _full_cloud->points[j + i * _horizontal_scans]);
-            continue;
-          } else {
-            continue;
+          if (j % 5 == 0) {
+            _outlier_cloud->push_back(_full_cloud->points[j + i * _horizontal_scans]);
           }
+          continue;
         }
         // majority of ground points are skipped
         if (_ground_mat(i, j) == 1) {
@@ -698,6 +920,7 @@ void ImageProjection::cloudSegmentation() {
   }
 
   // extract segmented cloud for visualization
+  /*
   for (size_t i = 0; i < _vertical_scans; ++i) {
     for (size_t j = 0; j < _horizontal_scans; ++j) {
       if (_label_mat(i, j) > 0 && _label_mat(i, j) != 999999) {
@@ -708,6 +931,7 @@ void ImageProjection::cloudSegmentation() {
       }
     }
   }
+  */
 }
 
 void ImageProjection::labelComponents(int row, int col) {
@@ -816,7 +1040,6 @@ void ImageProjection::publishClouds() {
   PublishCloud(_pub_ground_cloud, patched_ground_);
   PublishCloud(_pub_segmented_cloud_pure, _segmented_cloud_pure);
   //PublishCloud(_pub_full_info_cloud, _full_info_cloud);
-
   if (_pub_segmented_cloud_info->get_subscription_count() != 0) {
     _pub_segmented_cloud_info->publish(_seg_msg);
   }
@@ -828,8 +1051,8 @@ void ImageProjection::publishClouds() {
   out.patched_ground.reset(new pcl::PointCloud<PointType>());
   out.patched_ground_edge.reset(new pcl::PointCloud<PointType>());
   out.trans_c2s = trans_c2s_;
-  out.trans_c2b = trans_c2b_;
   out.trans_b2s = trans_b2s_;
+  out.trans_m2ci = trans_m2ci_;
   out.odom_type = odom_type_;
   out.vertical_scans = _vertical_scans;
   out.horizontal_scans = _horizontal_scans;

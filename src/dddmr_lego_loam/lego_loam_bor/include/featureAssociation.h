@@ -65,7 +65,7 @@ class FeatureAssociation : public rclcpp::Node
   std::string odom_type_;
   std::string baselink_frame_;
   bool first_odom_prepared_;
-  tf2::Transform tf2_trans_b2s_, tf2_first_odom_inverse_, tf2_first_odom_, tf2_trans_c2s_, tf2_trans_c2b_;
+  tf2::Transform tf2_trans_b2s_, tf2_first_odom_inverse_, tf2_first_odom_, tf2_trans_c2s_;
   bool to_map_optimization_;
   bool odom_sanity_check_;
   
@@ -172,7 +172,7 @@ class FeatureAssociation : public rclcpp::Node
   void assignMappingOdometry(float (&ts)[6]);
   nav_msgs::msg::Path laser_odom_path_, wheel_odom_path_;
   geometry_msgs::msg::TransformStamped trans_c2s_;
-  geometry_msgs::msg::TransformStamped trans_c2b_;
+  geometry_msgs::msg::TransformStamped trans_b2s_;
   bool initialize_laser_odom_at_first_frame_;
   bool odom_topic_alive_;
   bool odom_tf_alive_;

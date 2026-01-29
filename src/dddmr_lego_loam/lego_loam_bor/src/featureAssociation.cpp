@@ -1475,8 +1475,7 @@ void FeatureAssociation::runFeatureAssociation() {
   cloudHeader = segInfo.header;
   cloudHeader.stamp = clock_->now();
   trans_c2s_ = projection.trans_c2s;
-  trans_c2b_ = projection.trans_c2b;
-  baselink_frame_ = projection.trans_c2b.child_frame_id;
+  baselink_frame_ = "base_link";
   tf2_trans_b2s_.setOrigin(tf2::Vector3(projection.trans_b2s.transform.translation.x, 
                               projection.trans_b2s.transform.translation.y, projection.trans_b2s.transform.translation.z));
   tf2_trans_b2s_.setRotation(tf2::Quaternion(projection.trans_b2s.transform.rotation.x, 
@@ -1495,11 +1494,6 @@ void FeatureAssociation::runFeatureAssociation() {
     wheelOdometry.header.frame_id = "odom";
     wheelOdometry.child_frame_id = baselink_frame_;
 
-    tf2::Matrix3x3 m(tf2_trans_b2s_.getRotation());
-    double roll, pitch, yaw;
-    m.getRPY(roll, pitch, yaw);
-    // handle pitch at this stage
-    transformLaserOdometrySum[0] = pitch;
     initialize_laser_odom_at_first_frame_ = true;
     return;
   }
@@ -1551,9 +1545,10 @@ void FeatureAssociation::runFeatureAssociation() {
     out.cloud_patched_ground_last = projection.patched_ground;
     out.cloud_patched_ground_edge_last = projection.patched_ground_edge;
 
-    out.laser_odometry = mappingOdometry;
+    out.decisive_odometry = mappingOdometry;
     out.trans_c2s = trans_c2s_;
-    out.trans_c2b = trans_c2b_;
+    out.trans_b2s = projection.trans_b2s;
+    out.trans_m2ci = projection.trans_m2ci;
     out.wheel_odometry = wheelOdometry;
     out.broadcast_odom_tf = !odom_tf_alive_;
     _output_channel.send(std::move(out));

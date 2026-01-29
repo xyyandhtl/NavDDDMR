@@ -123,7 +123,6 @@ class MapOptimization : public rclcpp::Node
 
  private:
   
-  std::shared_ptr<tf2_ros::StaticTransformBroadcaster> tf_static_broadcaster_;
   std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
   rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr pub_key_pose_arr_;
@@ -131,10 +130,9 @@ class MapOptimization : public rclcpp::Node
   //@ relative pose between current pose and nearest key frame for initial guess to opt_icp_gn
   tf2::Transform tf2_current2closestKeyFrame_;
   //@ affine for final transformation to map when outputing pose graph
-  Eigen::Affine3d trans_m2ci_af3_, trans_c2s_af3_, trans_s2c_af3_, trans_c2b_af3_;
+  Eigen::Affine3d trans_m2ci_af3_, trans_c2s_af3_, trans_s2c_af3_, trans_b2s_af3_;
   tf2::Stamped<tf2::Transform> tf2_trans_m2ci_;
   tf2::Stamped<tf2::Transform> tf2_trans_c2s_; //camera2sensorlink
-  tf2::Stamped<tf2::Transform> tf2_trans_c2b_; //camera2baselink, calculated from FA
   tf2::Stamped<tf2::Transform> tf2_trans_b2s_; //baselink2sensor to get ground distance
   std::set<std::pair<int, int>> pose_graph_;
 
@@ -365,7 +363,9 @@ class MapOptimization : public rclcpp::Node
 
   std::vector<bool> ground_edge_processed_;
   bool broadcast_odom_tf_;
-
+  bool has_m2ci_af3_;
+  size_t current_ground_size_;
+  
 };
 
 #endif // MAPOPTIMIZATION_H

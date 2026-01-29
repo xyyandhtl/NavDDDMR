@@ -232,6 +232,10 @@ void MultiLayerSpinningLidar::cbSensor(const sensor_msgs::msg::PointCloud2::Shar
   Eigen::Affine3d trans_b2s_af3 = tf2::transformToEigen(trans_b2s_);
   pcl::transformPointCloud(*pcl_msg, *pcl_msg, trans_b2s_af3);
 
+  std::vector<int> indices;
+  pcl_msg->is_dense = false;
+  pcl::removeNaNFromPointCloud(*pcl_msg, *pcl_msg, indices);
+
   //@Get affine tf from gbl to sensor
   Eigen::Affine3d trans_gbl2b_af3 = tf2::transformToEigen(trans_gbl2b_);
   trans_gbl2s_af3_ = trans_gbl2b_af3*trans_b2s_af3;

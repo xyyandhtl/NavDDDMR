@@ -39,6 +39,22 @@ If your baselink is not on the ground, you can setup a base_footprint to connect
   </tr>
 </table>
 
+## Ground FOV Setup
+The ground fov setup allow the algorithm to find the ground more effectively. Following are illustrations of ground_fov setup.
+
+Example 1, installation is horizontal: 
+
+<p align='center'>
+    <img src="https://github.com/dfl-rlab/dddmr_documentation_materials/blob/main/dddmr_lego_loam_bor/ground_fov.png" width="700" height="420"/>
+</p>
+
+Example 2, installation is 90 degree tilted:
+
+<p align='center'>
+    <img src="https://github.com/dfl-rlab/dddmr_documentation_materials/blob/main/dddmr_lego_loam_bor/ground_fov_tilted.png" width="700" height="420"/>
+</p>
+
+
 ## Cite *LeGO-LOAM*
 
 Many thanks to *LeGO-LOAM* paper: 
