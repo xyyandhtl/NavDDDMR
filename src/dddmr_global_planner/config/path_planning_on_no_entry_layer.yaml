@@ -30,7 +30,7 @@ perception_3d_global:
 
     no_entry_layer:
       plugin: "perception_3d::NoEntryLayer"
-      no_entry_zone_pcd_file_dir: "/root/dddmr_navigation/src/dddmr_perception_3d/config/no_entry_layer.yaml" #Abs path   
+      no_entry_zone_pcd_file_dir: "/home/lenovo/dddmr_navigation/src/dddmr_perception_3d/config/no_entry_layer.yaml" #Abs path   
       inflation_distance: 1.0
 
 global_planner:

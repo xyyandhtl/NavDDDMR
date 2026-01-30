@@ -30,7 +30,7 @@ find_package(pcl_conversions REQUIRED)
 
 find_package(Boost REQUIRED COMPONENTS filesystem serialization system thread date_time regex timer chrono)
 find_package(GTSAM REQUIRED)
-find_package(PCL 1.15 REQUIRED QUIET)
+find_package(PCL REQUIRED QUIET)
 find_package(OpenCV REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_geometry REQUIRED)
@@ -234,7 +234,7 @@ ament_target_dependencies(lego_loam_bag
 add_executable(lego_loam
   src/lego_loam_node.cpp
 )
-target_link_libraries(lego_loam 
+target_link_libraries(lego_loam
   interactive_pose_graph_editor
   image_projection
   feature_association

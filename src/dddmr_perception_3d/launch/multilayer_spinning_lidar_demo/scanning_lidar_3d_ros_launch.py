@@ -69,7 +69,7 @@ def generate_launch_description():
           "bag",
           "play",
           "--loop",
-          "/root/dddmr_bags/unitree_lidar_point_cloud",
+          "/home/lenovo/dddmr_bags/unitree_lidar_point_cloud",
       ],
       output="screen",
   )

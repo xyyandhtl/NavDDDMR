@@ -346,7 +346,9 @@ bool ImageProjection::allEssentialTFReady(std::string sensor_frame){
     }
     catch (tf2::TransformException& e)
     {
-      RCLCPP_ERROR(this->get_logger(), "Could not get footprint frame to sensor frame, did you launch a static broadcaster node for the tf between footprint to sensor?");
+      RCLCPP_ERROR(this->get_logger(), 
+        "Could not get footprint frame %s to sensor frame %s, did you launch a static broadcaster node for the tf between footprint to sensor?",
+        baselink_frame_.c_str(), sensor_frame_.c_str());
       return false;
     }
   }
