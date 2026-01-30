@@ -973,31 +973,31 @@ bool MapOptimization::detectLoopClosure() {
   pcl::transformPointCloud(*latestSurfKeyFrameCloudBaseLinkFrame, *latestSurfKeyFrameCloudBaseLinkFrame, trans_s2c_af3_);
   //@ Narrow corrider should be prevented when doing icp: Narrow field of view usually introducing skewed icp result
   
-  pcl::PointCloud<PointType>::Ptr latestSurfKeyFrameCloudBaseLinkFrame_Pass(new pcl::PointCloud<PointType>());
-  auto original_size = latestSurfKeyFrameCloudBaseLinkFrame->points.size();
-  pcl::PassThrough<PointType> pass;
-  pass.setInputCloud (latestSurfKeyFrameCloudBaseLinkFrame);
-  pass.setFilterFieldName ("x");
-  pass.setFilterLimits (-5.0, 5.0);
-  pass.filter (*latestSurfKeyFrameCloudBaseLinkFrame_Pass);
-  pass.setInputCloud (latestSurfKeyFrameCloudBaseLinkFrame_Pass);
-  pass.setFilterFieldName ("y");
-  pass.setFilterLimits (-3.0, 3.0);
-  pass.filter (*latestSurfKeyFrameCloudBaseLinkFrame_Pass);
+  // pcl::PointCloud<PointType>::Ptr latestSurfKeyFrameCloudBaseLinkFrame_Pass(new pcl::PointCloud<PointType>());
+  // auto original_size = latestSurfKeyFrameCloudBaseLinkFrame->points.size();
+  // pcl::PassThrough<PointType> pass;
+  // pass.setInputCloud (latestSurfKeyFrameCloudBaseLinkFrame);
+  // pass.setFilterFieldName ("x");
+  // pass.setFilterLimits (-5.0, 5.0);
+  // pass.filter (*latestSurfKeyFrameCloudBaseLinkFrame_Pass);
+  // pass.setInputCloud (latestSurfKeyFrameCloudBaseLinkFrame_Pass);
+  // pass.setFilterFieldName ("y");
+  // pass.setFilterLimits (-3.0, 3.0);
+  // pass.filter (*latestSurfKeyFrameCloudBaseLinkFrame_Pass);
 
-  if( latestSurfKeyFrameCloudBaseLinkFrame_Pass->points.size() > original_size/2){
-    double dx = cloudKeyPoses6D->points[latestFrameIDLoopCloure].x - cloudKeyPoses6D->points[closestHistoryFrameID].x;
-    double dy = cloudKeyPoses6D->points[latestFrameIDLoopCloure].y - cloudKeyPoses6D->points[closestHistoryFrameID].y;
-    double dz = cloudKeyPoses6D->points[latestFrameIDLoopCloure].z - cloudKeyPoses6D->points[closestHistoryFrameID].z;
-    if(sqrt(dx*dx+dy*dy+dz*dz)<1.0){
+  // if( latestSurfKeyFrameCloudBaseLinkFrame_Pass->points.size() > original_size/2){
+  //   double dx = cloudKeyPoses6D->points[latestFrameIDLoopCloure].x - cloudKeyPoses6D->points[closestHistoryFrameID].x;
+  //   double dy = cloudKeyPoses6D->points[latestFrameIDLoopCloure].y - cloudKeyPoses6D->points[closestHistoryFrameID].y;
+  //   double dz = cloudKeyPoses6D->points[latestFrameIDLoopCloure].z - cloudKeyPoses6D->points[closestHistoryFrameID].z;
+  //   if(sqrt(dx*dx+dy*dy+dz*dz)<1.0){
 
-    }
-    else{
-      RCLCPP_WARN(this->get_logger(), "Too clustered! In range: %lu points, overall: %lu points. Distance between two frame is higher than 1.0 m, ignore loop closure.", latestSurfKeyFrameCloudBaseLinkFrame_Pass->points.size(), original_size);
-      return false;
-    }
+  //   }
+  //   else{
+  //     RCLCPP_WARN(this->get_logger(), "Too clustered! In range: %lu points, overall: %lu points. Distance between two frame is higher than 1.0 m, ignore loop closure.", latestSurfKeyFrameCloudBaseLinkFrame_Pass->points.size(), original_size);
+  //     return false;
+  //   }
 
-  }
+  // }
   
   // check continuity between two frame from current to candidate
   // if continuity is good, we dont need closure, solving spiral up issue
@@ -1108,7 +1108,7 @@ void MapOptimization::performLoopClosure() {
 
   icp_opti.SetMaxCorrespondDistance(correpond_distance);
   icp_opti.Match(latestSurfKeyFrameCloud, T_predict, cloud_source_opti_transformed_ptr, T_final);
-  //RCLCPP_INFO(this->get_logger(), "_history_keyframe_fitness_score: %.2f, ICP score: %.2f, convergence: %d", _history_keyframe_fitness_score, icp_opti.GetFitnessScore(), icp_opti.HasConverged());
+  RCLCPP_INFO(this->get_logger(), "_history_keyframe_fitness_score: %.2f, ICP score: %.2f, convergence: %d", _history_keyframe_fitness_score, icp_opti.GetFitnessScore(), icp_opti.HasConverged());
   //!icp_opti.HasConverged() || 
   if (icp_opti.GetFitnessScore() > _history_keyframe_fitness_score)
   {

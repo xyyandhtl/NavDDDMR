@@ -42,11 +42,11 @@ perception_3d:
       expected_sensor_time: 0.1
     speed_limit_layer:
       plugin: "perception_3d::SpeedLimitLayer"
-      speed_zone_pcd_file_dir: "/root/dddmr_navigation/src/dddmr_perception_3d/config/speed_limit_layer.yaml" #Abs path   
+      speed_zone_pcd_file_dir: "/home/lenovo/dddmr_navigation/src/dddmr_perception_3d/config/speed_limit_layer.yaml" #Abs path   
       knn_num_of_ground_search: 5
     no_entry_layer:
       plugin: "perception_3d::NoEntryLayer"
-      no_entry_zone_pcd_file_dir: "/root/dddmr_navigation/src/dddmr_perception_3d/config/no_entry_layer.yaml" #Abs path   
+      no_entry_zone_pcd_file_dir: "/home/lenovo/dddmr_navigation/src/dddmr_perception_3d/config/no_entry_layer.yaml" #Abs path   
       inflation_distance: 1.0
     depth_camera:
       plugin: "perception_3d::DepthCameraLayer"
