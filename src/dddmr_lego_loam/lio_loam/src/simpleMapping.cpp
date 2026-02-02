@@ -227,7 +227,7 @@ SimpleMapping::SimpleMapping(std::string name)
   
   // Setup voxel filters for map publishing
   _map_voxel_filter.setLeafSize(_map_resolution, _map_resolution, _map_resolution);
-  _ground_voxel_filter.setLeafSize(_ground_resolution, _ground_resolution, _ground_resolution);
+  _ground_voxel_filter.setLeafSize(_ground_resolution, _ground_resolution, _ground_resolution * 2.0);
 
   // Initialize PCD saving service
   srvSavePCD = this->create_service<std_srvs::srv::Empty>("save_mapped_point_cloud",

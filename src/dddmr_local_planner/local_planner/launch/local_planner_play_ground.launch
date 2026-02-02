@@ -15,6 +15,6 @@
   <node name="rviz2" pkg="rviz2" exec="rviz2" args="-d $(var rviz_config)"/>
 
   <!--- TF -->
-  <node pkg="tf2_ros" exec="static_transform_publisher" name="map2baselink" args="0.0 0.0 0.0 0.0 0.0 0.0 base_link map" />
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="map2baselink" args="0.0 0.0 0.0 0.0 0.0 0.0 /map /base_link" />
 
 </launch>

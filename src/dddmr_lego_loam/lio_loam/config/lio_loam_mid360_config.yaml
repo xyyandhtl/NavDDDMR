@@ -28,5 +28,5 @@ simple_mapping:
         keyframe_distance_threshold: 1.0
         keyframe_angle_threshold: 1.0
         
-        map_resolution: 0.3
-        ground_resolution: 0.3
+        map_resolution: 0.4
+        ground_resolution: 0.4

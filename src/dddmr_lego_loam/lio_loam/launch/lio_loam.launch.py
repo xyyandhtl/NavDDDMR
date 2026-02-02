@@ -1,5 +1,5 @@
 """
-Combined LIO and LEGO-LOAM Launch File with Bag Play
+Combined LIO and LEGO-LOAM Launch File with Bag Play and PGO
 
 Author: Combined from both packages
 Date: 2026-01-27
@@ -11,21 +11,19 @@ from launch.actions import DeclareLaunchArgument, TimerAction, ExecuteProcess
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch.conditions import IfCondition
 from ament_index_python.packages import get_package_share_directory
+from launch.actions import IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 import os
 
 
 def generate_launch_description():
     # Get package share directories
     lio_loam_pkg_share = get_package_share_directory('lio_loam')
-    lio_pkg_share = get_package_share_directory('surfelio')
-    
+    lio_with_pgo_pkg_share = get_package_share_directory('pgo')
+
     # LEGO-LOAM config path
     lio_loam_config = PathJoinSubstitution([lio_loam_pkg_share, 'config', 'lio_loam_mid360_config.yaml'])
-    
-    # LIO config path
-    lio_default_config = os.path.join(lio_pkg_share, 'config', 'lidar_inertial_odometry', 'mid360.yaml')
-    lio_default_rviz_config = os.path.join(lio_pkg_share, 'rviz', 'lio_rviz.rviz')
-    
+
     # LEGO-LOAM RViz config
     lio_loam_rviz_config = os.path.join(lio_loam_pkg_share, 'rviz', 'livox.rviz')
 
@@ -70,18 +68,14 @@ def generate_launch_description():
         ]
     )
 
-    # LIO Node
-    lio_node = Node(
-        package='surfelio',
-        executable='lio_node',
-        name='lio_node',
-        output='screen',
-        parameters=[{
-            'imu_topic': LaunchConfiguration('imu_topic'),
-            'lidar_topic': LaunchConfiguration('lidar_topic'),
-            'config_file': lio_default_config,
-            'init_imu_samples': 100,
-        }]
+    # LIO launch
+    lio_launch = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(lio_with_pgo_pkg_share, 'launch', 'pgo_surfelio.launch.py')
+        ),
+        launch_arguments={
+            'open_rviz': "false"
+        }.items()
     )
 
     # RViz2 for LEGO-LOAM
@@ -92,18 +86,9 @@ def generate_launch_description():
         arguments=['-d', lio_loam_rviz_config],
         output='screen'
     )
-    
-    # RViz2 for LIO
-    rviz_lio_node = Node(
-        package='rviz2',
-        executable='rviz2',
-        name='rviz2_lio',
-        arguments=['-d', lio_default_rviz_config],
-        output='screen'
-    )
 
     # Static transform publisher
-    static_transform_node = Node(
+    static_transform_node1 = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='sensor2baselink',
@@ -111,17 +96,24 @@ def generate_launch_description():
         arguments=['0.0', '0', '-0.1',  '0.0', '-0.5', '0', 'livox_frame', 'base_link'],
         output='screen'
     )
-    
+
+    static_transform_node2 = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='sensor2baselink1',
+        arguments=['0.0', '0', '-0.2', '0.0', '0.0', '0', 'base_link', 'base_footprint']
+    )
+
     # Delayed ros2 bag play node (2 seconds delay)
     delayed_bag_play_node = TimerAction(
         period=2.0,  # 2 seconds delay
         actions=[
             ExecuteProcess(
                 condition=IfCondition(LaunchConfiguration('enable_bag_play')),
-                cmd=['ros2', 'bag', 'play', 
-                     LaunchConfiguration('bag_file'), 
-                     '--topics', 
-                     LaunchConfiguration('lidar_topic'), 
+                cmd=['ros2', 'bag', 'play',
+                     LaunchConfiguration('bag_file'),
+                     '--topics',
+                     LaunchConfiguration('lidar_topic'),
                      LaunchConfiguration('imu_topic')],
                 shell=True,
                 output='screen'
@@ -132,15 +124,15 @@ def generate_launch_description():
     return LaunchDescription([
         bag_file_arg,
         enable_bag_play_arg,
-
         imu_topic_arg,
         lidar_topic_arg,
         odom_topic_arg,
-        lio_node,
 
         lio_loam_node,
-        rviz_lio_loam_node,
-        static_transform_node,
+        lio_launch,
+        # rviz_lio_loam_node,
+        static_transform_node1,
+        static_transform_node2,
 
         delayed_bag_play_node,
     ])

@@ -17,16 +17,17 @@ source install/setup.bash
 
 # LIO节点
 # echo "🚀 启动 "
-ros2 launch lio_loam lio_loam.launch.py
+# ros2 launch lio_loam lio_loam.launch.py
+# ros2 launch p2p_move_base mid360_map_nav.launch.py
 
 # 原 DDRMR 启动命令
-# ros2 launch lego_loam_bor lego_loam_bag_airy.launch
+ros2 launch lego_loam_bor lego_loam_bag.launch
 # ros2 launch mcl_3dl mcl_3dlXfeatureXbag.launch
 # ros2 launch perception_3d scanning_lidar_3d_ros_launch.py
 # ros2 launch global_planner path_planning_on_static_layer.launch
 # ros2 launch local_planner local_planner_play_ground.launch
 # ros2 launch p2p_move_base go2_localization.launch
-# ros2 launch p2p_move_base go2_mapping.lau
+# ros2 launch p2p_move_base go2_mapping.launch
 
 # 启动 Gazebo 环境
 # ros2 launch go2_config gz_lidar_odom.launch.py

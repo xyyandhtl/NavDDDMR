@@ -1425,8 +1425,6 @@ void FeatureAssociation::publishCloud() {
     pcl::PointCloud<PointType>::Ptr tmp_pub_cloud;
     tmp_pub_cloud.reset(new pcl::PointCloud<PointType>());
     Eigen::Affine3d trans_c2s_af3d = tf2::transformToEigen(trans_c2s_);
-    // RCLCPP_INFO(rclcpp::get_logger("FeatureAssociation"), "trans_c2s_af3d: %f, %f, %f", trans_c2s_af3d.translation().x(), trans_c2s_af3d.translation().y(), trans_c2s_af3d.translation().z());
-    if (cloud->points.size() == 0) return;
     pcl::transformPointCloud(*cloud, *tmp_pub_cloud, trans_c2s_af3d.inverse());
     
     pcl::toROSMsg(*tmp_pub_cloud, laserCloudOutMsg);
@@ -1437,7 +1435,6 @@ void FeatureAssociation::publishCloud() {
 
   Publish(pubCornerPointsSharp, cornerPointsSharp);
   Publish(pubCornerPointsLessSharp, cornerPointsLessSharp);
-  RCLCPP_INFO(rclcpp::get_logger("FeatureAssociation"), "surfPointsFlat size: %d", surfPointsFlat->points.size());
   Publish(pubSurfPointsFlat, surfPointsFlat);
   Publish(pubSurfPointsLessFlat, surfPointsLessFlat);
 }
