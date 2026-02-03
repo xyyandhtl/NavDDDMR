@@ -48,14 +48,14 @@ include_directories(
   include
 )
 
-# odom_3d_example
-add_executable(odom_3d_example
-  src/odom_3d_example.cpp
+# odom_3d
+add_executable(odom_3d
+  src/odom_3d.cpp
 )
-target_link_libraries(odom_3d_example
+target_link_libraries(odom_3d
   #${PCL_LIBRARIES}
 )
-ament_target_dependencies(odom_3d_example
+ament_target_dependencies(odom_3d
   ${dependencies}
 )
 
@@ -69,8 +69,9 @@ install(TARGETS
 )
 #]]
 #install node
+
 install(TARGETS
-  odom_3d_example
+  odom_3d
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
 

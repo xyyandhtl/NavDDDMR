@@ -53,10 +53,10 @@
 
 using namespace std::chrono_literals;
 
-class DifferentialDriveOdom: public rclcpp::Node{
+class GenericDriveOdom: public rclcpp::Node{
 
   public:
-    DifferentialDriveOdom():Node("differential_drive_3d_odom_approximation"){init();};
+    GenericDriveOdom():Node("differential_drive_3d_odom_approximation"){init();};
     void cbOdom2D(const nav_msgs::msg::Odometry::SharedPtr msg);
     void cbImu(const sensor_msgs::msg::Imu::SharedPtr msg);
     void pubOdom3D();
@@ -92,6 +92,7 @@ class DifferentialDriveOdom: public rclcpp::Node{
     nav_msgs::msg::Odometry odom_3d_;
     rclcpp::Time current_time_;
     rclcpp::Time last_time_;
+    double output_frequency_;
 
     
 };

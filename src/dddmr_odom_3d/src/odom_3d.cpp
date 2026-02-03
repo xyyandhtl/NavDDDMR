@@ -29,15 +29,20 @@
 * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#include "odom_3d_example.h"
+#include "odom_3d.h"
 
 using std::placeholders::_1;
 
-void DifferentialDriveOdom::init(){
+void GenericDriveOdom::init(){
+  
   cb_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   rclcpp::SubscriptionOptions options;
   options.callback_group = cb_group_;
   clock_ = this->get_clock();
+
+  declare_parameter("output_frequency", rclcpp::ParameterValue(10.0));
+  this->get_parameter("output_frequency", output_frequency_);
+  RCLCPP_INFO(this->get_logger(), "output_frequency: %.2f", output_frequency_);
 
   //quaternion initialized
   latest_imu_.orientation.x = 0.0;
@@ -51,25 +56,26 @@ void DifferentialDriveOdom::init(){
   imu_yaw_ =  0.0;
 
   //based on the pub_timer
-  dt_ = 0.1; 
+  dt_ = 1.0/output_frequency_; 
   
   odom_3d_pub_ = this->create_publisher<nav_msgs::msg::Odometry>("odom_3d",rclcpp::QoS(rclcpp::KeepLast(1)).durability_volatile().reliable());
 
   sub_odom_ = this->create_subscription<nav_msgs::msg::Odometry>(
       "/odom_2d", rclcpp::QoS(rclcpp::KeepLast(1)).durability_volatile().best_effort(),
-      std::bind(&DifferentialDriveOdom::cbOdom2D, this, std::placeholders::_1),options);  
+      std::bind(&GenericDriveOdom::cbOdom2D, this, std::placeholders::_1), options);  
 
   sub_imu_ = this->create_subscription<sensor_msgs::msg::Imu>(
   "/imu/data", rclcpp::QoS(rclcpp::KeepLast(1)).durability_volatile().best_effort(),
-      std::bind(&DifferentialDriveOdom::cbImu, this, std::placeholders::_1),options);
+      std::bind(&GenericDriveOdom::cbImu, this, std::placeholders::_1), options);
 
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
-      
-  pub_timer_ = this->create_wall_timer(100ms, std::bind(&DifferentialDriveOdom::pubOdom3D, this), cb_group_);
+  
+  auto loop_time = std::chrono::milliseconds(int(1000/output_frequency_));
+  pub_timer_ = this->create_wall_timer(loop_time, std::bind(&GenericDriveOdom::pubOdom3D, this), cb_group_);
   
 }
 
-void DifferentialDriveOdom::pubOdom3D(){
+void GenericDriveOdom::pubOdom3D(){
 
   if(latest_imu_.orientation.x == 0.0 &&
     latest_imu_.orientation.y == 0.0 &&
@@ -91,9 +97,16 @@ void DifferentialDriveOdom::pubOdom3D(){
   odom_3d_.pose.pose.orientation.y = latest_imu_.orientation.y;
   odom_3d_.pose.pose.orientation.z = latest_imu_.orientation.z;
   odom_3d_.pose.pose.orientation.w = latest_imu_.orientation.w;
-  odom_3d_.pose.pose.position.x += ((latest_odom_2d_.twist.twist.linear.x * cos(imu_pitch_)) * cos(imu_yaw_)) * dt_;
-  odom_3d_.pose.pose.position.y += ((latest_odom_2d_.twist.twist.linear.x * cos(imu_pitch_)) * sin(imu_yaw_)) * dt_;
-  odom_3d_.pose.pose.position.z += (latest_odom_2d_.twist.twist.linear.x * sin(-imu_pitch_)) * dt_;
+
+  odom_3d_.pose.pose.position.x += (((latest_odom_2d_.twist.twist.linear.x * cos(imu_pitch_)) * cos(imu_yaw_)) * dt_ + 
+                                    ((latest_odom_2d_.twist.twist.linear.y * cos(imu_roll_)) * cos(1.570796327 + imu_yaw_)) * dt_);
+
+  odom_3d_.pose.pose.position.y += (((latest_odom_2d_.twist.twist.linear.x * cos(imu_pitch_)) * sin(imu_yaw_)) * dt_ + 
+                                    ((latest_odom_2d_.twist.twist.linear.y * cos(imu_roll_)) * sin(1.570796327 + imu_yaw_)) * dt_);
+
+  odom_3d_.pose.pose.position.z += ((latest_odom_2d_.twist.twist.linear.x * sin(-imu_pitch_)) * dt_ + 
+                                    (latest_odom_2d_.twist.twist.linear.y * sin(imu_roll_)) * dt_);
+
   odom_3d_.twist.twist.linear.x = latest_odom_2d_.twist.twist.linear.x;
   odom_3d_.twist.twist.angular.z = latest_odom_2d_.twist.twist.angular.z;
   odom_3d_pub_->publish(odom_3d_);
@@ -110,12 +123,12 @@ void DifferentialDriveOdom::pubOdom3D(){
   tf_broadcaster_->sendTransform(tf_msg);
 }
 
-void DifferentialDriveOdom::cbImu(const sensor_msgs::msg::Imu::SharedPtr msg)
+void GenericDriveOdom::cbImu(const sensor_msgs::msg::Imu::SharedPtr msg)
 {
   latest_imu_ = *msg;
 }
 
-void DifferentialDriveOdom::cbOdom2D(const nav_msgs::msg::Odometry::SharedPtr msg)
+void GenericDriveOdom::cbOdom2D(const nav_msgs::msg::Odometry::SharedPtr msg)
 {
   latest_odom_2d_ = *msg;
 }
@@ -123,7 +136,7 @@ void DifferentialDriveOdom::cbOdom2D(const nav_msgs::msg::Odometry::SharedPtr ms
 int main(int argc, char** argv) 
 {
   rclcpp::init(argc, argv);
-  auto DDO = std::make_shared<DifferentialDriveOdom>();
+  auto DDO = std::make_shared<GenericDriveOdom>();
   rclcpp::executors::MultiThreadedExecutor::SharedPtr executor;
   executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>(); 
   executor->add_node(DDO); 

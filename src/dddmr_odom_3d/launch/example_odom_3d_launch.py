@@ -15,7 +15,7 @@ def generate_launch_description():
 
   odom_3d_ros = Node(
           package="dddmr_odom_3d",
-          executable="odom_3d_example",
+          executable="odom_3d",
           output="screen",
   )  
 
