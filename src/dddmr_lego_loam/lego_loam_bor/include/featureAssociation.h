@@ -140,7 +140,7 @@ class FeatureAssociation : public rclcpp::Node
 
  private:  
 
-  void initializationValue();
+  void initializeValue();
   void adjustDistortion();
   void calculateSmoothness();
   void markOccludedPoints();
@@ -177,6 +177,7 @@ class FeatureAssociation : public rclcpp::Node
   bool odom_topic_alive_;
   bool odom_tf_alive_;
   int odom_tf_detect_number_;
+  
 };
 
 #endif // FEATUREASSOCIATION_H

@@ -36,6 +36,7 @@ class BagReader : public rclcpp::Node
     float history_keyframe_search_radius_;
     bool save_current_map_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr raw_point_cloud_pub_;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr raw_odom_pub_;
 
   private:
 
@@ -74,6 +75,7 @@ BagReader::BagReader():Node("bag_reader"), pause_mapping_(true), save_current_ma
   RCLCPP_INFO(this->get_logger(), "skip_frame: %d", skip_frame_);  
 
   raw_point_cloud_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(point_cloud_topic_, 1);  
+  raw_odom_pub_ = this->create_publisher<nav_msgs::msg::Odometry>(odometry_topic_, 1);  
 
   sub_pause_ = this->create_subscription<std_msgs::msg::Bool>(
         "lego_loam_bag_pause", 1,
@@ -178,6 +180,7 @@ int main(int argc, char** argv) {
       nav_msgs::msg::Odometry::SharedPtr odom;
       odom = std::make_shared<nav_msgs::msg::Odometry>();
       *odom = msg;
+      BR->raw_odom_pub_->publish(msg);
       FA->odomHandler(odom);
       if(!go_first_odom){
         BR->first_odom_stamp_ = msg.header.stamp;

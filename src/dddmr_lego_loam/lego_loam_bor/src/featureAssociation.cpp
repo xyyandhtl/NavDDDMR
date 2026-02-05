@@ -117,7 +117,7 @@ FeatureAssociation::~FeatureAssociation()
   _input_channel.send({});
 }
 
-void FeatureAssociation::initializationValue() {
+void FeatureAssociation::initializeValue() {
   const size_t cloud_size = _vertical_scans * _horizontal_scans;
   cloudSmoothness.resize(cloud_size);
 
@@ -202,19 +202,22 @@ void FeatureAssociation::odomHandler(const nav_msgs::msg::Odometry::SharedPtr od
   
   odom_topic_alive_ = true;
 
-  if(!odom_tf_alive_ && odom_tf_detect_number_<2){
+  if(!odom_tf_alive_ && odom_tf_detect_number_<3){
+
+    odom_tf_detect_number_++;
     try
     {
       geometry_msgs::msg::TransformStamped trans_o2b;
       trans_o2b = tf2Buffer_->lookupTransform(
           odomIn->header.frame_id, odomIn->child_frame_id, tf2::TimePointZero);
       odom_tf_alive_ = true;
+      RCLCPP_INFO(this->get_logger(), "Detect %s to %s TF, MO will not broadcast from %s to %s.", odomIn->child_frame_id.c_str(), baselink_frame_.c_str(), odomIn->child_frame_id.c_str(), baselink_frame_.c_str());
     }
     catch (tf2::TransformException& e)
     {
-      RCLCPP_ERROR(this->get_logger(), "Could not get %s to %s, check your odom topic and baselink_frame", odomIn->child_frame_id.c_str(), baselink_frame_.c_str());
+      RCLCPP_DEBUG(this->get_logger(), "Could not get %s to %s, check your odom topic and baselink_frame", odomIn->child_frame_id.c_str(), baselink_frame_.c_str());
     }
-    odom_tf_detect_number_++;
+    
   }
 
   wheelOdometry = (*odomIn);
@@ -245,7 +248,7 @@ void FeatureAssociation::odomHandler(const nav_msgs::msg::Odometry::SharedPtr od
     }
     catch (tf2::TransformException& e)
     {
-      RCLCPP_ERROR(this->get_logger(), "Could not get %s to %s, check your odom topic and baselink_frame", odomIn->child_frame_id.c_str(), baselink_frame_.c_str());
+      RCLCPP_ERROR(this->get_logger(), "Could not get %s to %s, check your odom topic and baselink frame", odomIn->child_frame_id.c_str(), baselink_frame_.c_str());
     }
   }
 
@@ -281,15 +284,16 @@ void FeatureAssociation::odomHandler(const nav_msgs::msg::Odometry::SharedPtr od
 void FeatureAssociation::adjustDistortion() {
   bool halfPassed = false;
   int cloudSize = segmentedCloud->points.size();
-
+  
   PointType point;
 
   for (int i = 0; i < cloudSize; i++) {
     point.x = segmentedCloud->points[i].y;
     point.y = segmentedCloud->points[i].z;
     point.z = segmentedCloud->points[i].x;
-
-    float ori = -atan2(point.x, point.z);
+    
+    float ori = -atan2(segmentedCloud->points[i].y, segmentedCloud->points[i].x);
+    //float ori = -atan2(segmentedCloud_pitch_corrected->points[i].y, segmentedCloud_pitch_corrected->points[i].x);
     if (!halfPassed) {
       if (ori < segInfo.start_orientation - M_PI / 2)
         ori += 2 * M_PI;
@@ -305,11 +309,35 @@ void FeatureAssociation::adjustDistortion() {
       else if (ori > segInfo.end_orientation + M_PI / 2)
         ori -= 2 * M_PI;
     }
+    
+    float ori2;
+    if(segmentedCloud->points[i].x<0 && segmentedCloud->points[i].y>=0){
+      ori2 = -atan2(segmentedCloud->points[i].y, segmentedCloud->points[i].x) + 2 * M_PI;
+    }
+    else if(segmentedCloud->points[i].x<0 && segmentedCloud->points[i].y<0){
+      ori2 = -atan2(segmentedCloud->points[i].y, segmentedCloud->points[i].x);
+    }
+    else if(segmentedCloud->points[i].x>=0 && segmentedCloud->points[i].y>=0){
+      ori2 = -atan2(segmentedCloud->points[i].y, segmentedCloud->points[i].x) + 2 * M_PI;
+    }
+    else if(segmentedCloud->points[i].x>=0 && segmentedCloud->points[i].y<0){
+      ori2 = -atan2(segmentedCloud->points[i].y, segmentedCloud->points[i].x);
+      ori2 += 2 * M_PI;
+    }
 
-    float relTime = (ori - segInfo.start_orientation) / segInfo.orientation_diff;
-    point.intensity =
-        int(segmentedCloud->points[i].intensity) + _scan_period * relTime;
+    if(fabs(ori-ori2)>0.01){
+      ori2 = M_PI / 2;
+      RCLCPP_INFO(this->get_logger(), "%.2f, %.2f, %.2f, %.2f", segmentedCloud->points[i].x, segmentedCloud->points[i].y, ori, ori2);
+    }
+    
 
+    float relTime = (ori2 - segInfo.start_orientation) / segInfo.orientation_diff;
+    if(_scan_period<=0.0){
+      //keep original time
+    }
+    else{
+      point.intensity = int(segmentedCloud->points[i].intensity) + _scan_period * relTime;
+    }
     segmentedCloud->points[i] = point;
   }
 
@@ -405,7 +433,7 @@ void FeatureAssociation::extractFeatures() {
       for (int k = ep; k >= sp; k--) {
         int ind = cloudSmoothness[k].ind;
         if (cloudNeighborPicked[ind] == 0 &&
-            cloudCurvature[ind] > _edge_threshold &&
+            cloudCurvature[ind] > _edge_threshold && 
             segInfo.segmented_cloud_ground_flag[ind] == false) {
           largestPickedNum++;
           if (largestPickedNum <= 2) {
@@ -1487,7 +1515,7 @@ void FeatureAssociation::runFeatureAssociation() {
     _vertical_scans = projection.vertical_scans;
     _horizontal_scans = projection.horizontal_scans;
     _scan_period = projection.scan_period;  
-    initializationValue();
+    initializeValue();
 
     //@ inital default value
     wheelOdometry.pose.pose.orientation.w = 1.0;

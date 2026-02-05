@@ -139,6 +139,7 @@ ImageProjection::ImageProjection(std::string name, Channel<ProjectionOut>& outpu
   declare_parameter("imageProjection.stitcher_num", rclcpp::ParameterValue(0));
   this->get_parameter("imageProjection.stitcher_num", stitcher_num_);
   RCLCPP_INFO(this->get_logger(), "imageProjection.stitcher_num: %d", stitcher_num_);
+  stitcher_num_ = std::max(stitcher_num_, 1);
 
   declare_parameter("imageProjection.ground_fov_bottom", rclcpp::ParameterValue(0.0));
   this->get_parameter("imageProjection.ground_fov_bottom", ground_fov_bottom_);
@@ -360,15 +361,10 @@ void ImageProjection::cloudHandler(
   _laser_cloud_in->is_dense = false;
   pcl::removeNaNFromPointCloud(*_laser_cloud_in, *_laser_cloud_in, indices);
   
-  pc_valid_ = true;
-  if(_laser_cloud_in->points.size()<_vertical_scans*_horizontal_scans*0.8){
-    RCLCPP_ERROR(this->get_logger(), "Expecting: %lu points, but you only got %lu, check your lidar scan.", _vertical_scans*_horizontal_scans, _laser_cloud_in->points.size());
-    pc_valid_ = false;
-    return;
-  }
+
   //@if not stitch, save copy time
   pcl::PointCloud<PointType>::Ptr pcl_stitched_msg (new pcl::PointCloud<PointType>);
-  if(stitcher_num_<=0){
+  if(stitcher_num_<=1){
   }
   else{
     if(pcl_stitcher_.size()<stitcher_num_){
@@ -383,6 +379,13 @@ void ImageProjection::cloudHandler(
       *pcl_stitched_msg += (*si);
     }
     *_laser_cloud_in = *pcl_stitched_msg;
+  }
+
+  pc_valid_ = true;
+  if(_laser_cloud_in->points.size()<_vertical_scans*_horizontal_scans*0.1*(stitcher_num_)){
+    RCLCPP_ERROR(this->get_logger(), "Expecting: %d points, but you only got %lu, check your lidar scan.", _vertical_scans*_horizontal_scans, _laser_cloud_in->points.size());
+    pc_valid_ = false;
+    return;
   }
 
   _seg_msg.header = laserCloudMsg->header;
@@ -571,6 +574,7 @@ void ImageProjection::findStartEndAngle() {
   }
   _seg_msg.orientation_diff =
       _seg_msg.end_orientation - _seg_msg.start_orientation;
+
 }
 
 void ImageProjection::getNoPitchPoint(PointType& pt_in, PointType& pt_out){
@@ -662,7 +666,7 @@ void ImageProjection::zPitchRollFeatureRemoval() {
       float vertical_angle = std::atan2(dZ , sqrt(dX * dX + dY * dY));
 
       // zPitchRoll feature
-      if ( fabs(vertical_angle-sensor_install_pitch_) <= 5 * DEG_TO_RAD) {
+      if ( vertical_angle <= 5 * DEG_TO_RAD) {
         _ground_mat(i, j) = 1;
         _ground_mat(i + 1, j) = 1;
         _z_pitch_roll_decisive_feature_cloud->push_back(_full_cloud->points[upperInd]);
@@ -913,8 +917,7 @@ void ImageProjection::cloudSegmentation() {
         // mark the points' column index for marking occlusion later
         _seg_msg.segmented_cloud_col_ind[sizeOfSegCloud] = j;
         // save range info
-        _seg_msg.segmented_cloud_range[sizeOfSegCloud] =
-            _range_mat(i, j);
+        _seg_msg.segmented_cloud_range[sizeOfSegCloud] = _range_mat(i, j);
         // save seg cloud
         _segmented_cloud->push_back(_full_cloud->points[j + i * _horizontal_scans]);
         // size of seg cloud
@@ -1063,7 +1066,7 @@ void ImageProjection::publishClouds() {
   out.vertical_scans = _vertical_scans;
   out.horizontal_scans = _horizontal_scans;
   out.scan_period = _scan_period;
-
+  
   std::swap(out.seg_msg, _seg_msg);
   std::swap(out.outlier_cloud, _outlier_cloud);
   std::swap(out.segmented_cloud, _segmented_cloud);
