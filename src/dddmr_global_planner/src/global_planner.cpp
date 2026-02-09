@@ -67,6 +67,7 @@ void GlobalPlanner::handle_accepted(const std::shared_ptr<rclcpp_action::ServerG
   current_handle_.reset();
   current_handle_ = goal_handle;
   // this needs to return quickly to avoid blocking the executor, so spin up a new thread
+  RCLCPP_INFO(this->get_logger(), "Start a makePlan thread to plan");
   std::thread{std::bind(&GlobalPlanner::makePlan, this, std::placeholders::_1), goal_handle}.detach();
 }
   
@@ -210,6 +211,7 @@ void GlobalPlanner::cbClickedPoint(const geometry_msgs::msg::PointStamped::Share
   std::vector<unsigned int> smoothed_path_2nd;
   nav_msgs::msg::Path ros_path;
 
+  RCLCPP_INFO(this->get_logger(), "Clicked goal: %f, %f, %f", goal.pose.position.x, goal.pose.position.y, goal.pose.position.z);
   if(getStartGoalID(start, goal, start_id, goal_id)){
     if(!use_pre_graph_)
       a_star_planner_->getPath(start_id, goal_id, path);
@@ -450,8 +452,8 @@ bool GlobalPlanner::getStartGoalID(const geometry_msgs::msg::PoseStamped& start,
   pcl_start.y = start.pose.position.y;
   pcl_start.z = start.pose.position.z;
 
-  if(kdtree_ground_->radiusSearch (pcl_start, 0.5, pointIdxRadiusSearch_start, pointRadiusSquaredDistance_start)<1){
-    RCLCPP_WARN(this->get_logger(), "Start is not found.");
+  if(kdtree_ground_->radiusSearch (pcl_start, 1.0, pointIdxRadiusSearch_start, pointRadiusSquaredDistance_start)<1){
+    RCLCPP_WARN(this->get_logger(), "Start pcl_start %.2f, %.2f, %.2f is not found.", pcl_start.x, pcl_start.y, pcl_start.z);
     return false;
   }
   

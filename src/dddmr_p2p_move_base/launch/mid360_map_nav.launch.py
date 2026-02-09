@@ -21,7 +21,7 @@ def generate_launch_description():
 
     # Configuration files
     config_go2_mapping = PathJoinSubstitution([p2p_move_base_pkg_share, 'config', 'go2_mapping.yaml'])
-    rviz_config = PathJoinSubstitution([p2p_move_base_pkg_share, 'rviz', 'go2_mapping.rviz'])
+    rviz_config = PathJoinSubstitution([p2p_move_base_pkg_share, 'rviz', 'lio_loam_livox.rviz'])
 
     # Global planner node
     global_planner_node = Node(

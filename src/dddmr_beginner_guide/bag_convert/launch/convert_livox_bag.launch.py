@@ -10,8 +10,8 @@ def generate_launch_description():
             output='screen',
             parameters=[
                 {
-                    'input_bag': '/media/lenovo/1/rosbag/Outdoor01/',
-                    'output_bag': '/media/lenovo/1/rosbag/Outdoor01_fix/',
+                    'input_bag': '/media/lenovo/1/rosbag/GNSS_denial02/',
+                    'output_bag': '/media/lenovo/1/rosbag/GNSS_denial02_fix/',
                     'livox_topics': [
                         '/livox/avia/lidar',
                         '/livox/mid360/lidar'

@@ -71,7 +71,7 @@ def generate_launch_description():
     # LIO launch
     lio_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(lio_with_pgo_pkg_share, 'launch', 'pgo_surfelio.launch.py')
+            os.path.join(lio_with_pgo_pkg_share, 'launch', 'pgo_fastlio2.launch.py')
         ),
         launch_arguments={
             'open_rviz': "false"

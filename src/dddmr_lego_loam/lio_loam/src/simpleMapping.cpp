@@ -174,21 +174,21 @@ SimpleMapping::SimpleMapping(std::string name)
   RCLCPP_INFO(this->get_logger(), "imageProjection.trt_model_path: %s" , trt_model_path_.c_str());
 
   // Mapping parameters
-  declare_parameter("simple_mapping.keyframe_distance_threshold", rclcpp::ParameterValue(0.5));
-  this->get_parameter("simple_mapping.keyframe_distance_threshold", _keyframe_distance_thresh);
-  RCLCPP_INFO(this->get_logger(), "simple_mapping.keyframe_distance_threshold: %.2f", _keyframe_distance_thresh);
+  declare_parameter("mapping.keyframe_distance_threshold", rclcpp::ParameterValue(0.5));
+  this->get_parameter("mapping.keyframe_distance_threshold", _keyframe_distance_thresh);
+  RCLCPP_INFO(this->get_logger(), "mapping.keyframe_distance_threshold: %.2f", _keyframe_distance_thresh);
 
-  declare_parameter("simple_mapping.keyframe_angle_threshold", rclcpp::ParameterValue(0.2));
-  this->get_parameter("simple_mapping.keyframe_angle_threshold", _keyframe_angle_thresh);
-  RCLCPP_INFO(this->get_logger(), "simple_mapping.keyframe_angle_threshold: %.2f", _keyframe_angle_thresh);
+  declare_parameter("mapping.keyframe_angle_threshold", rclcpp::ParameterValue(0.2));
+  this->get_parameter("mapping.keyframe_angle_threshold", _keyframe_angle_thresh);
+  RCLCPP_INFO(this->get_logger(), "mapping.keyframe_angle_threshold: %.2f", _keyframe_angle_thresh);
 
-  declare_parameter("simple_mapping.map_resolution", rclcpp::ParameterValue(0.4));
-  this->get_parameter("simple_mapping.map_resolution", _map_resolution);
-  RCLCPP_INFO(this->get_logger(), "simple_mapping.map_resolution: %.2f", _map_resolution);
+  declare_parameter("mapping.map_resolution", rclcpp::ParameterValue(0.4));
+  this->get_parameter("mapping.map_resolution", _map_resolution);
+  RCLCPP_INFO(this->get_logger(), "mapping.map_resolution: %.2f", _map_resolution);
 
-  declare_parameter("simple_mapping.ground_resolution", rclcpp::ParameterValue(0.2));
-  this->get_parameter("simple_mapping.ground_resolution", _ground_resolution);
-  RCLCPP_INFO(this->get_logger(), "simple_mapping.ground_resolution: %.2f", _ground_resolution);
+  declare_parameter("mapping.ground_resolution", rclcpp::ParameterValue(0.2));
+  this->get_parameter("mapping.ground_resolution", _ground_resolution);
+  RCLCPP_INFO(this->get_logger(), "mapping.ground_resolution: %.2f", _ground_resolution);
 
   std::string filename = "my_file.txt"; // Replace with your file name
 
@@ -388,7 +388,7 @@ void SimpleMapping::callbackSync(const sensor_msgs::msg::PointCloud2::SharedPtr 
   pcl::PointCloud<PointType>::Ptr pcl_stitched_msg (new pcl::PointCloud<PointType>);
   if(stitcher_num_<=0){
   }
-  else if (true) {
+  else if (false) {  // when with huge pitch/roll, switch to false
     if(pcl_stitcher_.size()<stitcher_num_){
       pcl_stitcher_.push_back(*_laser_cloud_in);
     }
@@ -1013,6 +1013,10 @@ void SimpleMapping::addKeyFrame() {
 
     // Add to global maps
     *_global_map += *feature_frame;
+    for (auto& p : ground_frame->points)
+    {
+        p.z = std::round(p.z / 0.05f) * 0.05f;
+    }
     *_global_ground += *ground_frame;
 
     // Store the pose for keyframe
@@ -1065,18 +1069,21 @@ void SimpleMapping::publishMaps() {
     }
 
     // Downsample the global map
-    pcl::PointCloud<PointType>::Ptr downsampled_map(new pcl::PointCloud<PointType>());
     _map_voxel_filter.setInputCloud(_global_map);
-    _map_voxel_filter.filter(*downsampled_map);
+    // pcl::PointCloud<PointType>::Ptr downsampled_map(new pcl::PointCloud<PointType>());
+    // _map_voxel_filter.filter(*downsampled_map);
+    _map_voxel_filter.filter(*_global_map);
 
     // Downsample the global ground
-    pcl::PointCloud<PointType>::Ptr downsampled_ground(new pcl::PointCloud<PointType>());
     _ground_voxel_filter.setInputCloud(_global_ground);
-    _ground_voxel_filter.filter(*downsampled_ground);
+    // pcl::PointCloud<PointType>::Ptr downsampled_ground(new pcl::PointCloud<PointType>());
+    // _ground_voxel_filter.filter(*downsampled_ground);
+    _ground_voxel_filter.filter(*_global_ground);
 
     // Publish global map
     sensor_msgs::msg::PointCloud2 cloud_msg_map;
-    pcl::toROSMsg(*downsampled_map, cloud_msg_map);
+    // pcl::toROSMsg(*downsampled_map, cloud_msg_map);
+    pcl::toROSMsg(*_global_map, cloud_msg_map);
     if (_current_odom != nullptr) {
         cloud_msg_map.header.stamp = _current_odom->header.stamp;
     } else {
@@ -1087,7 +1094,8 @@ void SimpleMapping::publishMaps() {
 
     // Publish global ground
     sensor_msgs::msg::PointCloud2 cloud_msg_ground;
-    pcl::toROSMsg(*downsampled_ground, cloud_msg_ground);
+    // pcl::toROSMsg(*downsampled_ground, cloud_msg_ground);
+    pcl::toROSMsg(*_global_ground, cloud_msg_ground);
     if (_current_odom != nullptr) {
         cloud_msg_ground.header.stamp = _current_odom->header.stamp;
     } else {
@@ -1097,7 +1105,7 @@ void SimpleMapping::publishMaps() {
     pubGround->publish(cloud_msg_ground);
 
     RCLCPP_DEBUG(this->get_logger(), "Published global map with %zu points and ground with %zu points",
-                 downsampled_map->size(), downsampled_ground->size());
+                 _global_map->size(), _global_ground->size());
 }
 
 void SimpleMapping::pcdSaver(const std::shared_ptr<std_srvs::srv::Empty::Request> request,
