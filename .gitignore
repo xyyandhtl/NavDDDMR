@@ -1,7 +1,9 @@
 .marscode
 .vscode/
+
 src/lio_localization/
 src/gz_quadbot/
+src/bag_convert/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

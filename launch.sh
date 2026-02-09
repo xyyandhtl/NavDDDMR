@@ -27,7 +27,7 @@ source install/setup.bash
 # ros2 launch perception_3d scanning_lidar_3d_ros_launch.py
 # ros2 launch global_planner path_planning_on_static_layer.launch
 # ros2 launch local_planner local_planner_play_ground.launch
-# ros2 launch p2p_move_base go2_localization.launch
+ros2 launch p2p_move_base go2_localization.launch
 # ros2 launch p2p_move_base go2_mapping.launch
 
 # 启动 Gazebo 环境
@@ -45,7 +45,7 @@ source install/setup.bash
 # ros2 launch super_odometry livox_mid360.launch.py
 # ros2 launch II_NVM run.launch.py
 # ros2 launch ct_lio run_eskf.launch.py
-ros2 launch kiss_matcher_ros slam_with_livox.launch.yaml
+# ros2 launch kiss_matcher_ros slam_with_livox.launch.yaml
 
 # 工具类节点
 # ros2 launch bag_converter convert_livox_bag.launch.py

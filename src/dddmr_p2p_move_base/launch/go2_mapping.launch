@@ -31,6 +31,6 @@
   </node>
 
   <!--- TF -->
-  <!-- <node pkg="tf2_ros" exec="static_transform_publisher" name="sensor2baselink"  args="0.0 0 -0.219 0.0 0.0 0 base_link base_footprint" /> -->
+  <node pkg="tf2_ros" exec="static_transform_publisher" name="sensor2baselink"  args="0.0 0 -0.219 0.0 0.0 0 base_link base_footprint" />
 
 </launch>
