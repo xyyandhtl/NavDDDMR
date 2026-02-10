@@ -21,7 +21,7 @@ def generate_launch_description():
 
     # Configuration files
     config_go2_mapping = PathJoinSubstitution([p2p_move_base_pkg_share, 'config', 'go2_mapping.yaml'])
-    rviz_config = PathJoinSubstitution([p2p_move_base_pkg_share, 'rviz', 'lio_loam_livox.rviz'])
+    rviz_config = PathJoinSubstitution([p2p_move_base_pkg_share, 'rviz', 'move_base_mapping.rviz'])
 
     # Global planner node
     global_planner_node = Node(
@@ -77,9 +77,9 @@ def generate_launch_description():
     )
 
     # Include LIO-LOAM launch file
-    lio_loam_launch = IncludeLaunchDescription(
+    lio_nav_bridge_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(get_package_share_directory('lio_loam'), 'launch', 'lio_loam.launch.py')
+            os.path.join(get_package_share_directory('lio_nav_bridge'), 'launch', 'lio_nav_bridge.launch.py')
         ),
         launch_arguments={
             'use_sim_time': LaunchConfiguration('use_sim_time')
@@ -96,5 +96,5 @@ def generate_launch_description():
         rviz_node,
 
         # LIO-LOAM integration
-        lio_loam_launch,
+        lio_nav_bridge_launch,
     ])
