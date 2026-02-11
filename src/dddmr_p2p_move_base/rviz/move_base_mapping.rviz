@@ -7,7 +7,7 @@ Panels:
         - /Global Options1
         - /TF1/Frames1
         - /Map1/Topic1
-        - /InteractiveAnchorPointCloud1/Topic1
+        - /Traj1
       Splitter Ratio: 0.5
     Tree Height: 922
   - Class: rviz_common/Selection
@@ -64,19 +64,19 @@ Visualization Manager:
       Tree:
         map:
           odom:
-            livox_frame:
-              base_link:
-                base_footprint:
-                  {}
-              livox_frame_pitch_removed:
+            base_link:
+              base_footprint:
                 {}
+              livox_frame:
+                livox_frame_pitch_removed:
+                  {}
       Update Interval: 0
       Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: false
       Autocompute Value Bounds:
-        Max Value: 27.487051010131836
-        Min Value: -3.655104398727417
+        Max Value: 31.047325134277344
+        Min Value: -6.869036674499512
         Value: true
       Axis: Z
       Channel Name: z
@@ -84,7 +84,7 @@ Visualization Manager:
       Color: 170; 255; 0
       Color Transformer: AxisColor
       Decay Time: 0
-      Enabled: true
+      Enabled: false
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 20
@@ -93,7 +93,7 @@ Visualization Manager:
       Name: Map
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 1
+      Size (Pixels): 2
       Size (m): 0.009999999776482582
       Style: Points
       Topic:
@@ -105,7 +105,7 @@ Visualization Manager:
         Value: /lego_loam_map
       Use Fixed Frame: true
       Use rainbow: true
-      Value: true
+      Value: false
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -116,19 +116,19 @@ Visualization Manager:
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
       Color: 0; 255; 0
-      Color Transformer: FlatColor
+      Color Transformer: Intensity
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 0
+      Max Intensity: 100
       Min Color: 0; 0; 0
       Min Intensity: 0
       Name: Ground
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.30000001192092896
+      Size (m): 0.25
       Style: Tiles
       Topic:
         Depth: 1
@@ -143,16 +143,16 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 11.93111801147461
-        Min Value: -1.228529930114746
+        Max Value: 29.476154327392578
+        Min Value: 0.041188400238752365
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
       Color: 255; 255; 255
       Color Transformer: AxisColor
-      Decay Time: 0
-      Enabled: false
+      Decay Time: 500
+      Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
       Max Intensity: 4096
@@ -161,7 +161,7 @@ Visualization Manager:
       Name: LIOMap
       Position Transformer: XYZ
       Selectable: true
-      Size (Pixels): 2
+      Size (Pixels): 1
       Size (m): 0.10000000149011612
       Style: Points
       Topic:
@@ -170,10 +170,10 @@ Visualization Manager:
         Filter size: 1
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /lio/world_cloud
+        Value: /lio/cloud_registered
       Use Fixed Frame: true
       Use rainbow: true
-      Value: false
+      Value: true
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
@@ -288,74 +288,6 @@ Visualization Manager:
         Reliability Policy: Reliable
         Value: /pgo/loop_markers
       Value: true
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz_default_plugins/PointCloud2
-      Color: 255; 0; 0
-      Color Transformer: FlatColor
-      Decay Time: 0
-      Enabled: false
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 15
-      Min Color: 0; 0; 0
-      Min Intensity: 5
-      Name: InteractiveAnchorPointCloud
-      Position Transformer: XYZ
-      Selectable: true
-      Size (Pixels): 5
-      Size (m): 0.009999999776482582
-      Style: Points
-      Topic:
-        Depth: 5
-        Durability Policy: Transient Local
-        Filter size: 2
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /interactive_pose_graph_editor/node_1_pointcloud
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: false
-    - Alpha: 1
-      Autocompute Intensity Bounds: true
-      Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
-        Value: true
-      Axis: Z
-      Channel Name: intensity
-      Class: rviz_default_plugins/PointCloud2
-      Color: 0; 255; 0
-      Color Transformer: FlatColor
-      Decay Time: 0
-      Enabled: false
-      Invert Rainbow: false
-      Max Color: 255; 255; 255
-      Max Intensity: 15
-      Min Color: 0; 0; 0
-      Min Intensity: 6
-      Name: InteractiveToAncherPointCloud
-      Position Transformer: XYZ
-      Selectable: true
-      Size (Pixels): 4
-      Size (m): 0.009999999776482582
-      Style: Points
-      Topic:
-        Depth: 5
-        Durability Policy: Transient Local
-        Filter size: 2
-        History Policy: Keep Last
-        Reliability Policy: Reliable
-        Value: /interactive_pose_graph_editor/node_2_pointcloud
-      Use Fixed Frame: true
-      Use rainbow: true
-      Value: false
     - Alpha: 1
       Buffer Length: 1
       Class: rviz_default_plugins/Path
@@ -474,7 +406,7 @@ Visualization Manager:
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.009999999776482582
+      Size (m): 0.10000000149011612
       Style: Flat Squares
       Topic:
         Depth: 5
@@ -512,7 +444,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Reliable
-        Value: /lio/lio_path
+        Value: /lio/path
       Value: true
   Enabled: true
   Global Options:
@@ -561,25 +493,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 153.5370635986328
+      Distance: 82.41182708740234
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 18.739173889160156
-        Y: -13.20698356628418
-        Z: -61.39125442504883
+        X: -7.656592845916748
+        Y: -7.598344326019287
+        Z: -38.03546142578125
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.3197990655899048
+      Pitch: 1.3647959232330322
       Target Frame: map
       Value: Orbit (rviz_default_plugins)
-      Yaw: 1.525354027748108
+      Yaw: 1.0003559589385986
     Saved: ~
 Window Geometry:
   Displays:
@@ -597,5 +529,5 @@ Window Geometry:
   Views:
     collapsed: true
   Width: 1850
-  X: 171
-  Y: 79
+  X: 2829
+  Y: 176

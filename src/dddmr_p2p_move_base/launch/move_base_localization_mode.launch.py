@@ -20,7 +20,7 @@ def generate_launch_description():
     # lego_loam_pkg_share = get_package_share_directory('lego_loam_bor')
 
     # Configuration files
-    config_go2_mapping = PathJoinSubstitution([p2p_move_base_pkg_share, 'config', 'go2_mapping.yaml'])
+    config_go2_mapping = PathJoinSubstitution([p2p_move_base_pkg_share, 'config', 'localization.yaml'])
     rviz_config = PathJoinSubstitution([p2p_move_base_pkg_share, 'rviz', 'move_base_mapping.rviz'])
 
     # Global planner node

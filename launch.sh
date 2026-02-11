@@ -17,8 +17,8 @@ source install/setup.bash
 
 # SLAM+NAV 启动命令
 # echo "🚀 启动 "
-# ros2 launch lio_loam lio_loam.launch.py
-# ros2 launch p2p_move_base mid360_map_nav.launch.py
+# ros2 launch lio_nav_bridge lio_nav_bridge.launch.py
+ros2 launch p2p_move_base move_base_mapping_mode.launch.py
 
 # 原 DDRMR 启动命令
 # ros2 launch lego_loam_bor lego_loam_bag.launch
@@ -47,7 +47,7 @@ source install/setup.bash
 # ros2 launch spark_fast_lio mapping_livox.launch.yaml
 # ros2 launch pgo pgo_fastlio2.launch.py
 # ros2 launch pgo pgo_surfelio.launch.py
-ros2 launch pgo pgo_sparklio.launch.py
+# ros2 launch pgo pgo_sparklio.launch.py
 # ros2 launch localizer localizer_launch.py
 
 # 工具类节点

@@ -22,7 +22,7 @@ def generate_launch_description():
     lio_with_pgo_pkg_share = get_package_share_directory('pgo')
 
     # LEGO-LOAM config path
-    lio_nav_bridge_config = PathJoinSubstitution([lio_nav_bridge_pkg_share, 'config', 'lio_nav_bridge_mid360_config.yaml'])
+    lio_nav_bridge_config = PathJoinSubstitution([lio_nav_bridge_pkg_share, 'config', 'nav_map_mid360.yaml'])
 
     # LEGO-LOAM RViz config
     lio_nav_bridge_rviz_config = os.path.join(lio_nav_bridge_pkg_share, 'rviz', 'livox.rviz')
@@ -46,13 +46,19 @@ def generate_launch_description():
     # Declare launch arguments for bag file
     bag_file_arg = DeclareLaunchArgument(
         'bag_file',
-        default_value='/media/lenovo/1/rosbag/Outdoor01_fix/',
+        default_value='/media/lenovo/1/rosbag/GNSS_denial02_fix/', 
+        # default_value='/media/lenovo/1/rosbag/Outdoor01_fix/',
         description='Path to the bag file to play'
     )
     enable_bag_play_arg = DeclareLaunchArgument(
         'enable_bag_play',
         default_value='true',
         description='Enable ros2 bag play node'
+    )
+    open_bridge_rviz = DeclareLaunchArgument(
+        'open_bridge_rviz',
+        default_value='true',
+        description='Open RViz for PGO'
     )
 
     # LIO-LOAM Node
@@ -63,7 +69,8 @@ def generate_launch_description():
         respawn=False,
         parameters=[lio_nav_bridge_config],
         remappings=[
-            ('/lslidar_point_cloud', LaunchConfiguration('lidar_topic'),),
+            ('/lslidar_point_cloud', '/lio/cloud_registered_lidar',),
+            # ('/lslidar_point_cloud', LaunchConfiguration('lidar_topic'),),
             ('/odom', LaunchConfiguration('odom_topic'))
         ]
     )
@@ -71,7 +78,7 @@ def generate_launch_description():
     # LIO launch
     lio_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(lio_with_pgo_pkg_share, 'launch', 'pgo_fastlio2.launch.py')
+            os.path.join(lio_with_pgo_pkg_share, 'launch', 'pgo_sparklio.launch.py')
         ),
         launch_arguments={
             'open_rviz': "false"
@@ -80,6 +87,7 @@ def generate_launch_description():
 
     # RViz2 for LEGO-LOAM
     rviz_lio_nav_bridge_node = Node(
+        condition=IfCondition(LaunchConfiguration('open_bridge_rviz')),
         package='rviz2',
         executable='rviz2',
         name='rviz2_lio_nav_bridge',
@@ -87,17 +95,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Static transform publisher
-    static_transform_node1 = Node(
-        package='tf2_ros',
-        executable='static_transform_publisher',
-        name='sensor2baselink',
-        # arguments=['0.0', '0', '0.1',  '0.0', '0.5', '0', 'base_link', 'livox_frame'],
-        arguments=['0.0', '0', '-0.1',  '0.0', '-0.5', '0', 'livox_frame', 'base_link'],
-        output='screen'
-    )
-
-    static_transform_node2 = Node(
+    static_transform_node = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
         name='sensor2baselink1',
@@ -127,12 +125,12 @@ def generate_launch_description():
         imu_topic_arg,
         lidar_topic_arg,
         odom_topic_arg,
+        open_bridge_rviz,
 
         lio_nav_bridge_node,
         lio_launch,
-        # rviz_lio_nav_bridge_node,
-        static_transform_node1,
-        static_transform_node2,
+        rviz_lio_nav_bridge_node,
+        static_transform_node,
 
         delayed_bag_play_node,
     ])

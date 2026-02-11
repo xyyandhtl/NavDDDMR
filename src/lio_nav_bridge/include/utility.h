@@ -55,16 +55,17 @@ struct CloudInfo
 {
   std_msgs::msg::Header header;
   
-  std::vector<int> start_ring_index;
-  std::vector<int> end_ring_index;
+//   TODO: if more info need to transfer
+//   std::vector<int> start_ring_index;
+//   std::vector<int> end_ring_index;
   
-  std::vector<bool> segmented_cloud_ground_flag;
-  std::vector<int> segmented_cloud_col_ind;
-  std::vector<float> segmented_cloud_range;
+//   std::vector<bool> segmented_cloud_ground_flag;
+//   std::vector<int> segmented_cloud_col_ind;
+//   std::vector<float> segmented_cloud_range;
   
-  double start_orientation{0.0};
-  double end_orientation{0.0};
-  double orientation_diff{0.0};
+//   double start_orientation{0.0};
+//   double end_orientation{0.0};
+//   double orientation_diff{0.0};
 };
 
 

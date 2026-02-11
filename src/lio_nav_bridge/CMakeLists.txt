@@ -12,6 +12,7 @@ find_package(std_srvs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(visualization_msgs REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
@@ -59,6 +60,7 @@ set(dependencies
   sensor_msgs
   nav_msgs
   geometry_msgs
+  visualization_msgs
   tf2_ros
   tf2
   tf2_geometry_msgs
@@ -68,16 +70,27 @@ set(dependencies
   cv_bridge
 )
 
-#simple mapping node
+# simple mapping node
 add_executable(lio_nav_bridge_node
   src/lio_nav_bridge_node.cpp
-  src/simpleMapping.cpp
+  src/simple_mapping.cpp
 )
 target_link_libraries(lio_nav_bridge_node
   ${PCL_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
 ament_target_dependencies(lio_nav_bridge_node
+  ${dependencies}
+)
+
+# sub maps node
+add_executable(sub_maps_node
+  src/sub_maps.cpp
+)
+target_link_libraries(sub_maps_node
+  ${PCL_LIBRARIES}
+)
+ament_target_dependencies(sub_maps_node
   ${dependencies}
 )
 

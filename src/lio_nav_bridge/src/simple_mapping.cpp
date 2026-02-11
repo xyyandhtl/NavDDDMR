@@ -29,8 +29,9 @@
 #include <boost/circular_buffer.hpp>
 #include <tf2_ros/buffer.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
-#include "simpleMapping.h"
-#include "std_srvs/srv/empty.hpp"
+#include <std_srvs/srv/empty.hpp>
+
+#include "simple_mapping.h"
 
 using std::placeholders::_1;
 
@@ -73,22 +74,20 @@ SimpleMapping::SimpleMapping(std::string name)
   pubMap = this->create_publisher<sensor_msgs::msg::PointCloud2>("lego_loam_map", 1);
   pubGround = this->create_publisher<sensor_msgs::msg::PointCloud2>("lego_loam_ground", 1);
 
-  _pub_full_info_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
-      ("full_cloud_info", 1);
+  // _pub_full_info_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
+  //     ("full_cloud_info", 1);
 
   _pub_ground_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
       ("ground_cloud", 1);
 
-  _pub_segmented_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
-      ("segmented_cloud", 1);
+  // _pub_segmented_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
+  //     ("segmented_cloud", 1);
 
   _pub_segmented_cloud_pure = this->create_publisher<sensor_msgs::msg::PointCloud2>
       ("segmented_cloud_pure", 1);
 
- 
-
-  _pub_outlier_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
-      ("outlier_cloud", 1);
+  // _pub_outlier_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>
+  //     ("outlier_cloud", 1);
 
   pub_annotated_img_ = this->create_publisher<sensor_msgs::msg::Image>("annotated_image", 1);
 
@@ -135,10 +134,6 @@ SimpleMapping::SimpleMapping(std::string name)
   declare_parameter("laser.ground_scan_index", rclcpp::ParameterValue(0));
   this->get_parameter("laser.ground_scan_index", _ground_scan_index);
   RCLCPP_INFO(this->get_logger(), "laser.ground_scan_index: %d", _ground_scan_index);
-
-  declare_parameter("laser.odom_type", rclcpp::ParameterValue(""));
-  this->get_parameter("laser.odom_type", odom_type_);
-  RCLCPP_INFO(this->get_logger(), "laser.odom_type: %s", odom_type_.c_str());
 
   declare_parameter("laser.baselink_frame", rclcpp::ParameterValue(""));
   this->get_parameter("laser.baselink_frame", baselink_frame_);
@@ -261,12 +256,12 @@ void SimpleMapping::resetParameters() {
   std::fill(_full_info_cloud->points.begin(), _full_info_cloud->points.end(),
             nanPoint);
 
-  _seg_msg.start_ring_index.assign(_vertical_scans, 0);
-  _seg_msg.end_ring_index.assign(_vertical_scans, 0);
+  // _seg_msg.start_ring_index.assign(_vertical_scans, 0);
+  // _seg_msg.end_ring_index.assign(_vertical_scans, 0);
 
-  _seg_msg.segmented_cloud_ground_flag.assign(cloud_size, false);
-  _seg_msg.segmented_cloud_col_ind.assign(cloud_size, 0);
-  _seg_msg.segmented_cloud_range.assign(cloud_size, 0);
+  // _seg_msg.segmented_cloud_ground_flag.assign(cloud_size, false);
+  // _seg_msg.segmented_cloud_col_ind.assign(cloud_size, 0);
+  // _seg_msg.segmented_cloud_range.assign(cloud_size, 0);
 }
 
 void SimpleMapping::tfInitial(){
@@ -367,8 +362,11 @@ bool SimpleMapping::allEssentialTFReady(std::string sensor_frame){
 
 void SimpleMapping::callbackSync(const sensor_msgs::msg::PointCloud2::SharedPtr laserCloudMsg,
                                  const nav_msgs::msg::Odometry::SharedPtr odomMsg) {
-
-  if(!allEssentialTFReady(laserCloudMsg->header.frame_id))
+  
+  auto cloud_frame = laserCloudMsg->header.frame_id;
+  bool is_world_pc = cloud_frame == "odom" || cloud_frame == "map";
+  // TODO: fix is_world_pc back to local senser_frame_flat transform, for image projection
+  if(!is_world_pc && !allEssentialTFReady(cloud_frame))
     return;
 
   // Store the current odometry message
@@ -385,25 +383,14 @@ void SimpleMapping::callbackSync(const sensor_msgs::msg::PointCloud2::SharedPtr 
 
   //@if not stitch, save copy time
   pcl::PointCloud<PointType>::Ptr pcl_stitched_msg (new pcl::PointCloud<PointType>);
-  if(stitcher_num_<=0){
-  }
-  else if (false) {  // when with huge pitch/roll, switch to false
-    if(pcl_stitcher_.size()<stitcher_num_){
-      pcl_stitcher_.push_back(*_laser_cloud_in);
-    }
-    else{
-      pcl_stitcher_.pop_front();
-      pcl_stitcher_.push_back(*_laser_cloud_in);
-    }
-    
-    for(auto si=pcl_stitcher_.begin(); si!=pcl_stitcher_.end();si++){
-      *pcl_stitched_msg += (*si);
-    }
-  } 
-  else {
+  if(stitcher_num_ > 0) {
     // Transform current cloud to world coordinates before adding to stitcher
     pcl::PointCloud<PointType>::Ptr world_cloud_ptr(new pcl::PointCloud<PointType>());
-    transformPointCloud(_laser_cloud_in, _current_odom->pose.pose, world_cloud_ptr);
+    if (is_world_pc) {
+      *world_cloud_ptr = *_laser_cloud_in;
+    } else {
+      transformPointCloud(_laser_cloud_in, _current_odom->pose.pose, world_cloud_ptr);
+    }
 
     if(pcl_stitcher_.size()<static_cast<size_t>(stitcher_num_)){
       pcl_stitcher_.push_back(*world_cloud_ptr);
@@ -418,32 +405,36 @@ void SimpleMapping::callbackSync(const sensor_msgs::msg::PointCloud2::SharedPtr 
         *pcl_stitched_msg += *cloud_it;
     }
 
-    // Create inverse transformation (from world to current lidar frame)
-    tf2::Transform tf_pose;
-    tf2::fromMsg(_current_odom->pose.pose, tf_pose);
-    tf2::Transform inv_tf = tf_pose.inverse();
-    geometry_msgs::msg::Pose inv_pose_msg;
-    tf2::toMsg(inv_tf, inv_pose_msg);
+    if (!is_world_pc) {
+      // Create inverse transformation (from world to current lidar frame)
+      tf2::Transform tf_pose;
+      tf2::fromMsg(_current_odom->pose.pose, tf_pose);
+      tf2::Transform inv_tf = tf_pose.inverse();
+      geometry_msgs::msg::Pose inv_pose_msg;
+      tf2::toMsg(inv_tf, inv_pose_msg);
 
-    transformPointCloud(pcl_stitched_msg, inv_pose_msg, pcl_stitched_msg);
+      transformPointCloud(pcl_stitched_msg, inv_pose_msg, pcl_stitched_msg);
+    }
+
     *_laser_cloud_in = *pcl_stitched_msg;
   }
 
   _seg_msg.header = laserCloudMsg->header;
   _seg_msg.header.stamp = laserCloudMsg->header.stamp;
-  _seg_msg.header.frame_id = laserCloudMsg->header.frame_id+"_pitch_removed";
+  if (!is_world_pc) {
+    _seg_msg.header.frame_id = laserCloudMsg->header.frame_id + "_pitch_removed";
 
-  // transform tilted lidar back to horizontal
-  geometry_msgs::msg::Pose correction_pose;
-  tf2::Quaternion q;
-  q.setRPY( 0, _sensor_mount_angle, 0);
-  correction_pose.orientation.x = q.x();
-  correction_pose.orientation.y = q.y();
-  correction_pose.orientation.z = q.z();
-  correction_pose.orientation.w = q.w();
-  transformPointCloud(_laser_cloud_in, correction_pose, _laser_cloud_in);
+    // transform tilted lidar back to horizontal
+    geometry_msgs::msg::Pose correction_pose;
+    tf2::Quaternion q;
+    q.setRPY( 0, _sensor_mount_angle, 0);
+    correction_pose.orientation.x = q.x();
+    correction_pose.orientation.y = q.y();
+    correction_pose.orientation.z = q.z();
+    correction_pose.orientation.w = q.w();
+    transformPointCloud(_laser_cloud_in, correction_pose, _laser_cloud_in);
+  }
 
-  findStartEndAngle();
   // Range image projection
   projectPointCloud();
   // Mark ground points
@@ -605,23 +596,6 @@ void SimpleMapping::projectPointCloud() {
 
 }
 
-void SimpleMapping::findStartEndAngle() {
-  // start and end orientation of this cloud
-  auto point = _laser_cloud_in->points.front();
-  _seg_msg.start_orientation = -std::atan2(point.y, point.x);
-
-  point = _laser_cloud_in->points.back();
-  _seg_msg.end_orientation = -std::atan2(point.y, point.x) + 2 * M_PI;
-
-  if (_seg_msg.end_orientation - _seg_msg.start_orientation > 3 * M_PI) {
-    _seg_msg.end_orientation -= 2 * M_PI;
-  } else if (_seg_msg.end_orientation - _seg_msg.start_orientation < M_PI) {
-    _seg_msg.end_orientation += 2 * M_PI;
-  }
-  _seg_msg.orientation_diff =
-      _seg_msg.end_orientation - _seg_msg.start_orientation;
-}
-
 void SimpleMapping::groundRemoval() {
   // _ground_mat
   // -1, no valid info to check if ground of not
@@ -768,8 +742,6 @@ void SimpleMapping::cloudSegmentation() {
   int sizeOfSegCloud = 0;
   // extract segmented cloud for lidar odometry
   for (size_t i = 0; i < _vertical_scans; ++i) {
-    _seg_msg.start_ring_index[i] = sizeOfSegCloud - 1 + 5;
-
     for (size_t j = 0; j < _horizontal_scans; ++j) {
       if (_label_mat(i, j) > 0 || _ground_mat(i, j) == 1) {
         // outliers that will not be used for optimization (always continue)
@@ -786,15 +758,6 @@ void SimpleMapping::cloudSegmentation() {
         if (_ground_mat(i, j) == 1) {
           if (j % 5 != 0 && j > 5 && j < _horizontal_scans - 5) continue;
         }
-        // mark ground points so they will not be considered as edge features
-        // later
-        _seg_msg.segmented_cloud_ground_flag[sizeOfSegCloud] =
-            (_ground_mat(i, j) == 1);
-        // mark the points' column index for marking occlusion later
-        _seg_msg.segmented_cloud_col_ind[sizeOfSegCloud] = j;
-        // save range info
-        _seg_msg.segmented_cloud_range[sizeOfSegCloud] =
-            _range_mat(i, j);
         // save seg cloud
         _segmented_cloud->push_back(_full_cloud->points[j + i * _horizontal_scans]);
         // size of seg cloud
@@ -802,7 +765,6 @@ void SimpleMapping::cloudSegmentation() {
       }
     }
 
-    _seg_msg.end_ring_index[i] = sizeOfSegCloud - 1 - 5;
   }
 
   // extract segmented cloud for visualization
@@ -986,12 +948,12 @@ void SimpleMapping::addKeyFrame() {
     pcl::PointCloud<PointType>::Ptr ground_frame(new pcl::PointCloud<PointType>());
 
     *feature_frame = *_segmented_cloud;
-    *ground_frame = *patched_ground_;
+    *ground_frame = *patched_ground_ + *patched_ground_edge_;
 
     try {
         // Lookup transform from pitch-removed frame to map frame at the time of current odometry
         // The pitch-removed frame is sensor_frame_ + "_pitch_removed"
-        std::string pitch_removed_frame = sensor_frame_ + "_pitch_removed";
+        std::string pitch_removed_frame = _seg_msg.header.frame_id;
         geometry_msgs::msg::TransformStamped transform_stamped = tf2Buffer_->lookupTransform(
             "map", pitch_removed_frame, tf2::TimePointZero);
 
@@ -1001,7 +963,7 @@ void SimpleMapping::addKeyFrame() {
     }
     catch (tf2::TransformException& ex) {
         RCLCPP_WARN(this->get_logger(), "Could not lookup transform from %s to map: %s",
-                   (sensor_frame_ + "_pitch_removed").c_str(), ex.what());
+                    _seg_msg.header.frame_id.c_str(), ex.what());
 
         // Fallback: use the original (but incorrect) transformation if TF lookup fails
         return;

@@ -1,10 +1,12 @@
-#include "simpleMapping.h"
+#include "simple_mapping.h"
 
 #include "rclcpp/rclcpp.hpp"
 
 int main(int argc, char** argv) {
 
   rclcpp::init(argc, argv);
+
+  // TODO: merge both mapping mode (simple_mapping) and localization mode (sub_maps) into this node
   auto SM = std::make_shared<SimpleMapping>("lio_nav_bridge");
   SM->tfInitial();
 
