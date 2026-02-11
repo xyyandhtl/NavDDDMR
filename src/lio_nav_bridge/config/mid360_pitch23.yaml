@@ -1,16 +1,15 @@
 lio_nav_bridge:
   ros__parameters:
     # use_sim_time: true
-    # leishen16
     laser:
-        baselink_frame: "base_link"
+        # baselink_frame: "base_link"
         num_vertical_scans: 32
         num_horizontal_scans: 640
         ground_scan_index: 16
         # vertical_angle_bottom: -7.0          # degrees
         # vertical_angle_top: 52.0            # degrees
-        vertical_angle_bottom: -40.0          # degrees
-        vertical_angle_top: 40.0            # degrees
+        vertical_angle_bottom: -30.0          # degrees
+        vertical_angle_top: 45.0            # degrees
         scan_period: 0.1                   # seconds
 
     imageProjection:
@@ -23,7 +22,6 @@ lio_nav_bridge:
         stitcher_num: 5
 
     mapping:
-
         keyframe_distance_threshold: 1.0
         keyframe_angle_threshold: 1.0
         

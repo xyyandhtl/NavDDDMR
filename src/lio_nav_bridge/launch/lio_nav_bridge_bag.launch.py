@@ -22,22 +22,12 @@ def generate_launch_description():
     lio_with_pgo_pkg_share = get_package_share_directory('pgo')
 
     # LEGO-LOAM config path
-    lio_nav_bridge_config = PathJoinSubstitution([lio_nav_bridge_pkg_share, 'config', 'nav_map_mid360.yaml'])
+    lio_nav_bridge_config = PathJoinSubstitution([lio_nav_bridge_pkg_share, 'config', 'mid360_pitch30.yaml'])
 
     # LEGO-LOAM RViz config
     lio_nav_bridge_rviz_config = os.path.join(lio_nav_bridge_pkg_share, 'rviz', 'livox.rviz')
 
     # Declare launch arguments for LIO
-    imu_topic_arg = DeclareLaunchArgument(
-        'imu_topic',
-        default_value='/livox/mid360/imu',
-        description='IMU data topic'
-    )
-    lidar_topic_arg = DeclareLaunchArgument(
-        'lidar_topic',
-        default_value='/livox/mid360/lidar',
-        description='LiDAR point cloud topic'
-    )
     odom_topic_arg = DeclareLaunchArgument(
         'odom_topic',
         default_value='/lio/odometry',
@@ -122,8 +112,6 @@ def generate_launch_description():
     return LaunchDescription([
         bag_file_arg,
         enable_bag_play_arg,
-        imu_topic_arg,
-        lidar_topic_arg,
         odom_topic_arg,
         open_bridge_rviz,
 

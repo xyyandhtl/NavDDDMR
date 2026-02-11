@@ -135,9 +135,9 @@ SimpleMapping::SimpleMapping(std::string name)
   this->get_parameter("laser.ground_scan_index", _ground_scan_index);
   RCLCPP_INFO(this->get_logger(), "laser.ground_scan_index: %d", _ground_scan_index);
 
-  declare_parameter("laser.baselink_frame", rclcpp::ParameterValue(""));
-  this->get_parameter("laser.baselink_frame", baselink_frame_);
-  RCLCPP_INFO(this->get_logger(), "laser.baselink_frame: %s", baselink_frame_.c_str());
+  // declare_parameter("laser.baselink_frame", rclcpp::ParameterValue(""));
+  // this->get_parameter("laser.baselink_frame", baselink_frame_);
+  // RCLCPP_INFO(this->get_logger(), "laser.baselink_frame: %s", baselink_frame_.c_str());
 
   declare_parameter("imageProjection.maximum_detection_range", rclcpp::ParameterValue(0.0));
   this->get_parameter("imageProjection.maximum_detection_range", _maximum_detection_range);
@@ -277,96 +277,71 @@ void SimpleMapping::tfInitial(){
   tfl_ = std::make_shared<tf2_ros::TransformListener>(*tf2Buffer_);
 }
 
-bool SimpleMapping::allEssentialTFReady(std::string sensor_frame){
-  
+bool SimpleMapping::allEssentialTFReady(std::string cloud_frame, const nav_msgs::msg::Odometry::SharedPtr odomMsg){
+
   if(!got_baselink2sensor_tf_){
-    sensor_frame_ = sensor_frame;
+    odom_child_frame_ = odomMsg->child_frame_id;
+    // Create the pitch_roll_removed frame from odometry (removing roll and pitch, keeping only yaw and translation)
+    flat_frame_ = odom_child_frame_ + "_flat";
+    trans_odom_to_flat_.header.frame_id = "map"; // Using map frame as reference
+    trans_odom_to_flat_.child_frame_id = flat_frame_;
     try
     {
-      trans_b2s_ = tf2Buffer_->lookupTransform(
-          baselink_frame_, sensor_frame_, tf2::TimePointZero);
-
-      tf2_trans_b2s_.setRotation(tf2::Quaternion(trans_b2s_.transform.rotation.x, trans_b2s_.transform.rotation.y, trans_b2s_.transform.rotation.z, trans_b2s_.transform.rotation.w));
-      tf2_trans_b2s_.setOrigin(tf2::Vector3(trans_b2s_.transform.translation.x, trans_b2s_.transform.translation.y, trans_b2s_.transform.translation.z));
-
-      tf2::Matrix3x3 m(tf2_trans_b2s_.getRotation());
-      double roll;
-      m.getRPY(roll, _sensor_mount_angle, _sensor_yaw_angle);
-
-      //@ we got pitch, remove pitch in the tf
-      tf2::Quaternion zero_pitch;
-      zero_pitch.setRPY(0, 0, _sensor_yaw_angle);
-      tf2_trans_b2s_.setRotation(zero_pitch);
-      trans_b2s_.transform.rotation.x = tf2_trans_b2s_.getRotation().x();
-      trans_b2s_.transform.rotation.y = tf2_trans_b2s_.getRotation().y();
-      trans_b2s_.transform.rotation.z = tf2_trans_b2s_.getRotation().z();
-      trans_b2s_.transform.rotation.w = tf2_trans_b2s_.getRotation().w();
-
-      //@ pubish a static tf for a frame that removing pitch
-      geometry_msgs::msg::TransformStamped trans_sensor2sensor_no_pitch;
-      trans_sensor2sensor_no_pitch.header.frame_id = sensor_frame;
-      trans_sensor2sensor_no_pitch.child_frame_id = sensor_frame+"_pitch_removed";
-      trans_sensor2sensor_no_pitch.transform.translation.x = 0.0; trans_sensor2sensor_no_pitch.transform.translation.y = 0.0; trans_sensor2sensor_no_pitch.transform.translation.z = 0.0;
-      tf2::Quaternion compensate_pitch;
-      compensate_pitch.setRPY(0, -1.0*_sensor_mount_angle, 0);
-      trans_sensor2sensor_no_pitch.transform.rotation.x = compensate_pitch.x();
-      trans_sensor2sensor_no_pitch.transform.rotation.y = compensate_pitch.y();
-      trans_sensor2sensor_no_pitch.transform.rotation.z = compensate_pitch.z();
-      trans_sensor2sensor_no_pitch.transform.rotation.w = compensate_pitch.w();
-
-      tf_static_broadcaster_->sendTransform(trans_sensor2sensor_no_pitch);
-
-
-      // camera to sensor
-      tf2::Quaternion qc2s;
-      qc2s.setRPY(0,-1.570795,-1.570795);
-      tf2_trans_c2s_.setOrigin(tf2::Vector3(0, 0, 0));
-      tf2_trans_c2s_.setRotation(qc2s);
-      
-      //camera to base_link/base_footprint
-      tf2_trans_c2b_.mult(tf2_trans_c2s_, tf2_trans_b2s_.inverse());
+      auto trans_b2s = tf2Buffer_->lookupTransform(
+          odom_child_frame_, cloud_frame, tf2::TimePointZero);
+      tf2::fromMsg(trans_b2s.transform, sensor_to_odom_child_);
       got_baselink2sensor_tf_= true;
-
-
-      trans_c2s_.transform.translation.x = tf2_trans_c2s_.getOrigin().x(); 
-      trans_c2s_.transform.translation.y = tf2_trans_c2s_.getOrigin().y(); 
-      trans_c2s_.transform.translation.z = tf2_trans_c2s_.getOrigin().z();
-      trans_c2s_.transform.rotation.x = tf2_trans_c2s_.getRotation().x();
-      trans_c2s_.transform.rotation.y = tf2_trans_c2s_.getRotation().y();
-      trans_c2s_.transform.rotation.z = tf2_trans_c2s_.getRotation().z();
-      trans_c2s_.transform.rotation.w = tf2_trans_c2s_.getRotation().w();
-      
-      trans_c2b_.child_frame_id = baselink_frame_;
-      trans_c2b_.transform.translation.x = tf2_trans_c2b_.getOrigin().x(); 
-      trans_c2b_.transform.translation.y = tf2_trans_c2b_.getOrigin().y(); 
-      trans_c2b_.transform.translation.z = tf2_trans_c2b_.getOrigin().z();
-      trans_c2b_.transform.rotation.x = tf2_trans_c2b_.getRotation().x();
-      trans_c2b_.transform.rotation.y = tf2_trans_c2b_.getRotation().y();
-      trans_c2b_.transform.rotation.z = tf2_trans_c2b_.getRotation().z();
-      trans_c2b_.transform.rotation.w = tf2_trans_c2b_.getRotation().w();
-      return true;
     }
     catch (tf2::TransformException& e)
     {
-      RCLCPP_ERROR(this->get_logger(), 
+      RCLCPP_ERROR(this->get_logger(),
         "Could not get footprint frame %s to sensor frame %s, did you launch a static broadcaster node for the tf between footprint to sensor?",
-        baselink_frame_.c_str(), sensor_frame_.c_str());
+        odom_child_frame_.c_str(), cloud_frame.c_str());
       return false;
     }
   }
-  else{
-    return true;
-  }
-}
+    
+  // Extract roll, pitch, yaw from the odometry orientation
+  tf2::Quaternion odom_quat;
+  tf2::fromMsg(odomMsg->pose.pose.orientation, odom_quat);
+  double odom_roll, odom_pitch, odom_yaw;
+  tf2::Matrix3x3(odom_quat).getRPY(odom_roll, odom_pitch, odom_yaw);
+  
+  // Create a new orientation with only yaw (removing roll and pitch)
+  tf2::Quaternion flat_quat;
+  flat_quat.setRPY(0, 0, odom_yaw);
+  
+  // Prepare the transform message from map to pitch_roll_removed
+  trans_odom_to_flat_.header.stamp = this->get_clock()->now();
+  trans_odom_to_flat_.transform.translation.x = odomMsg->pose.pose.position.x;
+  trans_odom_to_flat_.transform.translation.y = odomMsg->pose.pose.position.y;
+  trans_odom_to_flat_.transform.translation.z = odomMsg->pose.pose.position.z;
+  trans_odom_to_flat_.transform.rotation.x = flat_quat.x();
+  trans_odom_to_flat_.transform.rotation.y = flat_quat.y();
+  trans_odom_to_flat_.transform.rotation.z = flat_quat.z();
+  trans_odom_to_flat_.transform.rotation.w = flat_quat.w();
+  
+  // Publish the transform from map to pitch_roll_removed
+  tf_static_broadcaster_->sendTransform(trans_odom_to_flat_);
 
+
+  // Compute transform from sensor to pitch_roll_removed
+  tf2::Transform odom_child_to_flat;
+  odom_child_to_flat.setOrigin(tf2::Vector3(0, 0, 0)); // Only rotation difference matters
+  odom_child_to_flat.setRotation(flat_quat * odom_quat.inverse());
+  
+  // Store the transform from sensor frame to pitch_roll_removed frame
+  sensor_to_flat_ = odom_child_to_flat * sensor_to_odom_child_;
+
+  return true;
+}
 
 void SimpleMapping::callbackSync(const sensor_msgs::msg::PointCloud2::SharedPtr laserCloudMsg,
                                  const nav_msgs::msg::Odometry::SharedPtr odomMsg) {
-  
+
   auto cloud_frame = laserCloudMsg->header.frame_id;
-  bool is_world_pc = cloud_frame == "odom" || cloud_frame == "map";
-  // TODO: fix is_world_pc back to local senser_frame_flat transform, for image projection
-  if(!is_world_pc && !allEssentialTFReady(cloud_frame))
+
+  if (!allEssentialTFReady(cloud_frame, odomMsg))
     return;
 
   // Store the current odometry message
@@ -386,11 +361,7 @@ void SimpleMapping::callbackSync(const sensor_msgs::msg::PointCloud2::SharedPtr 
   if(stitcher_num_ > 0) {
     // Transform current cloud to world coordinates before adding to stitcher
     pcl::PointCloud<PointType>::Ptr world_cloud_ptr(new pcl::PointCloud<PointType>());
-    if (is_world_pc) {
-      *world_cloud_ptr = *_laser_cloud_in;
-    } else {
-      transformPointCloud(_laser_cloud_in, _current_odom->pose.pose, world_cloud_ptr);
-    }
+    transformPointCloud(_laser_cloud_in, _current_odom->pose.pose, world_cloud_ptr);
 
     if(pcl_stitcher_.size()<static_cast<size_t>(stitcher_num_)){
       pcl_stitcher_.push_back(*world_cloud_ptr);
@@ -405,35 +376,23 @@ void SimpleMapping::callbackSync(const sensor_msgs::msg::PointCloud2::SharedPtr 
         *pcl_stitched_msg += *cloud_it;
     }
 
-    if (!is_world_pc) {
-      // Create inverse transformation (from world to current lidar frame)
-      tf2::Transform tf_pose;
-      tf2::fromMsg(_current_odom->pose.pose, tf_pose);
-      tf2::Transform inv_tf = tf_pose.inverse();
-      geometry_msgs::msg::Pose inv_pose_msg;
-      tf2::toMsg(inv_tf, inv_pose_msg);
-
-      transformPointCloud(pcl_stitched_msg, inv_pose_msg, pcl_stitched_msg);
-    }
-
     *_laser_cloud_in = *pcl_stitched_msg;
   }
 
   _seg_msg.header = laserCloudMsg->header;
   _seg_msg.header.stamp = laserCloudMsg->header.stamp;
-  if (!is_world_pc) {
-    _seg_msg.header.frame_id = laserCloudMsg->header.frame_id + "_pitch_removed";
+  _seg_msg.header.frame_id = flat_frame_;
 
-    // transform tilted lidar back to horizontal
-    geometry_msgs::msg::Pose correction_pose;
-    tf2::Quaternion q;
-    q.setRPY( 0, _sensor_mount_angle, 0);
-    correction_pose.orientation.x = q.x();
-    correction_pose.orientation.y = q.y();
-    correction_pose.orientation.z = q.z();
-    correction_pose.orientation.w = q.w();
-    transformPointCloud(_laser_cloud_in, correction_pose, _laser_cloud_in);
-  }
+  // transform tilted lidar back to horizontal
+  tf2::Transform tf_pose;
+  tf2::fromMsg(_current_odom->pose.pose, tf_pose);
+  tf2::Transform inv_tf = tf_pose.inverse();
+  // Combine the inverse odometry transform with the sensor to flat transform
+  tf2::Transform combined_transform = sensor_to_flat_ * inv_tf;
+  
+  geometry_msgs::msg::Transform combined_transform_msg;
+  tf2::toMsg(combined_transform, combined_transform_msg);
+  transformPointCloud(_laser_cloud_in, combined_transform_msg, _laser_cloud_in);
 
   // Range image projection
   projectPointCloud();
@@ -951,11 +910,9 @@ void SimpleMapping::addKeyFrame() {
     *ground_frame = *patched_ground_ + *patched_ground_edge_;
 
     try {
-        // Lookup transform from pitch-removed frame to map frame at the time of current odometry
-        // The pitch-removed frame is sensor_frame_ + "_pitch_removed"
-        std::string pitch_removed_frame = _seg_msg.header.frame_id;
+        // Lookup transform from pitch-roll-removed frame to map frame at the time of current odometry
         geometry_msgs::msg::TransformStamped transform_stamped = tf2Buffer_->lookupTransform(
-            "map", pitch_removed_frame, tf2::TimePointZero);
+            "map", flat_frame_.c_str(), tf2::TimePointZero);
 
         // Apply the correct transformation from pitch-removed frame to map frame
         transformPointCloud(feature_frame, transform_stamped.transform, feature_frame);
@@ -963,7 +920,7 @@ void SimpleMapping::addKeyFrame() {
     }
     catch (tf2::TransformException& ex) {
         RCLCPP_WARN(this->get_logger(), "Could not lookup transform from %s to map: %s",
-                    _seg_msg.header.frame_id.c_str(), ex.what());
+                    flat_frame_.c_str(), ex.what());
 
         // Fallback: use the original (but incorrect) transformation if TF lookup fails
         return;

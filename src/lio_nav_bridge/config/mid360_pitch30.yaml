@@ -1,0 +1,37 @@
+lio_nav_bridge:
+  ros__parameters:
+    # use_sim_time: true
+    laser:
+        # baselink_frame: "base_link"
+        num_vertical_scans: 32
+        num_horizontal_scans: 640
+        ground_scan_index: 16
+        # vertical_angle_bottom: -7.0          # degrees
+        # vertical_angle_top: 52.0            # degrees
+        vertical_angle_bottom: -40.0          # degrees
+        vertical_angle_top: 40.0            # degrees
+        scan_period: 0.1                   # seconds
+
+    imageProjection:
+        segment_valid_point_num: 5
+        segment_valid_line_num: 2
+        segment_theta: 60.0                      # decrese this value may improve accuracy
+        minimum_detection_range: 0.5
+        maximum_detection_range: 100.0            # point cloud within this range will be used to project image
+        distance_for_patch_between_rings: 1.0    # patch ground between rings within this range, i.e. ring0 and ring1 is smaller than 1 meter, patch them
+        stitcher_num: 5
+
+    mapping:
+        keyframe_distance_threshold: 1.0
+        keyframe_angle_threshold: 1.0
+        
+        map_resolution: 0.5
+        ground_resolution: 0.5
+
+
+sub_maps:
+  ros__parameters:
+    pose_graph_dir: "/home/lenovo/dddmr_bags/gz_go2_demo_world"
+    sub_map_search_radius: 50.0
+    sub_map_warmup_trigger_distance: 20.0
+    complete_map_voxel_size: 0.4
