@@ -101,8 +101,12 @@ def generate_launch_description():
                 cmd=['ros2', 'bag', 'play',
                      LaunchConfiguration('bag_file'),
                      '--topics',
-                     LaunchConfiguration('lidar_topic'),
-                     LaunchConfiguration('imu_topic')],
+                     '/livox/mid360/lidar',
+                     '/livox/mid360/imu',
+                     '--remap', 
+                     '/livox/mid360/lidar:=/livox/lidar',
+                     '/livox/mid360/imu:=/livox/imu',
+                    ],
                 shell=True,
                 output='screen'
             )

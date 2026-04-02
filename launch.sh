@@ -19,7 +19,7 @@ source install/setup.bash
 # echo "🚀 启动 "
 # ros2 launch lio_nav_bridge lio_nav_bridge_sim.launch.py
 # ros2 launch lio_nav_bridge lio_nav_bridge_bag.launch.py
-# ros2 launch p2p_move_base move_base_mapping_mode.launch.py
+ros2 launch p2p_move_base move_base_mapping_mode.launch.py
 
 # 原 DDRMR 启动命令
 # ros2 launch lego_loam_bor lego_loam_bag.launch
@@ -48,7 +48,7 @@ source install/setup.bash
 # LIO 带回环
 # ros2 launch pgo pgo_fastlio2.launch.py
 # ros2 launch pgo pgo_surfelio.launch.py
-ros2 launch pgo pgo_sparklio.launch.py
+# ros2 launch pgo pgo_sparklio.launch.py
 # ros2 launch localizer localizer_launch.py
 
 # 工具类节点

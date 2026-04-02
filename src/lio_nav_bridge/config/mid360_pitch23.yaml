@@ -25,8 +25,8 @@ lio_nav_bridge:
         keyframe_distance_threshold: 1.0
         keyframe_angle_threshold: 1.0
         
-        map_resolution: 0.5
-        ground_resolution: 0.5
+        map_resolution: 0.2
+        ground_resolution: 0.2
 
 
 sub_maps:

@@ -223,7 +223,7 @@ perception_3d_global:
       euclidean_cluster_extraction_min_cluster_size: 1
       xy_resolution: 0.05
       height_resolution: 0.05
-      marking_height: 2.0
+      marking_height: 1.0
       perception_window_size: 5.0 #the window for marking/clearing in meter, we dont casting to maximum range of the sensor even it is gbl map
       segmentation_ignore_ratio: 1.1 #f a segmentation match static pc with this ratio, we ignore it. ex: a wall
       expected_sensor_time: 0.1
@@ -231,4 +231,4 @@ perception_3d_global:
 global_planner:
   ros__parameters:
     turning_weight: 0.1 #Punish the zig-zag path
-    enable_detail_log: false
+    enable_detail_log: true

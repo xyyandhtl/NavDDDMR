@@ -19,7 +19,7 @@ echo "🚀 启动仿真环境 "
 
 # 启动 Gazebo 环境
 # ros2 launch go2_config gz_lidar_odom.launch.py    # with gt odom
-# ros2 launch go2_config go2_lidar_gps.launch.py
+ros2 launch go2_config go2_lidar_gps.launch.py
 # ros2 launch go2w_description gazebo.launch.py
-ros2 launch go2w_config go2w_lidar_gps.launch.py
+#ros2 launch go2w_config go2w_lidar_gps.launch.py
 
